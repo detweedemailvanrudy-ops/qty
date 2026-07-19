@@ -119,6 +119,24 @@
             background: #f0f2f5;
         }
 
+        .day-info {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-grow: 1;
+            justify-content: space-between;
+            margin-right: 15px;
+        }
+
+        .day-total {
+            font-size: 0.9rem;
+            color: var(--primary-color);
+            background: rgba(74, 144, 226, 0.1);
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-weight: 700;
+        }
+
         .day-header::after {
             content: '▼';
             font-size: 0.75rem;
@@ -230,16 +248,13 @@
         return data ? JSON.parse(data) : [];
     }
 
-    // Zet een YYYY-MM-DD string om naar een nette uitgeschreven Nederlandse datum met weekdag
     function formatLongDate(dateString) {
         const [year, month, day] = dateString.split('-');
-        // We gebruiken een vaste UTC constructie om tijdzoneverschuivingen op mobiel te voorkomen
         const dateObj = new Date(Date.UTC(year, month - 1, day));
         
         const opties = { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' };
         let formatted = dateObj.toLocaleDateString('nl-NL', opties);
         
-        // Zorg dat de eerste letter van de weekdag een hoofdletter wordt
         return formatted.charAt(0).toUpperCase() + formatted.slice(1);
     }
 
@@ -252,7 +267,7 @@
             return;
         }
 
-        // 1. Sorteer alle metingen eerst chronologisch (nieuwste eerst)
+        // 1. Sorteer alle metingen chronologisch (nieuwste eerst)
         registrations.sort((a, b) => new Date(`${b.date}T${b.time}`) - new Date(`${a.date}T${a.time}`));
 
         // 2. Groepeer metingen per unieke datum
@@ -264,23 +279,31 @@
             groups[item.date].push(item);
         });
 
-        // 3. Maak de DOM elementen aan voor elke dag
-        // Omdat de metingen al gesorteerd zijn, pakken we de unieke datums in volgorde
+        // 3. Sorteer de unieke datums zelf ook van nieuw naar oud
         const sortedDates = Object.keys(groups).sort((a, b) => new Date(b) - new Date(a));
 
         sortedDates.forEach((dateKey, index) => {
             const dayGroup = document.createElement('div');
-            // De allernieuwste dag (index 0) klappen we standaard open voor het gemak
             dayGroup.className = `day-group ${index === 0 ? 'open' : ''}`;
+
+            // Bereken het totaal voor deze specifieke dag
+            const totalWeight = groups[dateKey].reduce((sum, item) => sum + parseFloat(item.weight), 0);
 
             const header = document.createElement('div');
             header.className = 'day-header';
-            header.textContent = formatLongDate(dateKey);
+            
+            // Maak de structuur voor de tekst en het dagtotaal badge
+            header.innerHTML = `
+                <div class="day-info">
+                    <span>${formatLongDate(dateKey)}</span>
+                    <span class="day-total">${totalWeight.toFixed(2)} g</span>
+                </div>
+            `;
 
             const content = document.createElement('div');
             content.className = 'day-content';
 
-            // Voeg de metingen van die dag toe aan de inklapbare content
+            // Voeg de individuele metingen toe
             groups[dateKey].forEach(item => {
                 const itemDiv = document.createElement('div');
                 itemDiv.className = 'log-item';
@@ -291,7 +314,6 @@
                 content.appendChild(itemDiv);
             });
 
-            // Klik-functionaliteit voor het open/dichtklappen
             header.addEventListener('click', () => {
                 dayGroup.classList.toggle('open');
             });
@@ -320,13 +342,15 @@
         renderList();
     });
 
+    // PWA Service Worker registratie script
+    if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('./sw.js')
+            .then(() => console.log('Service Worker geregistreerd.'))
+            .catch((err) => console.log('Service Worker mislukt:', err));
+    }
+
     setDefaultDateTime();
     renderList();
-    if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('./sw.js')
-        .then(() => console.log('Service Worker geregistreerd.'))
-        .catch((err) => console.log('Service Worker mislukt:', err));
-}
 </script>
 
 </body>
