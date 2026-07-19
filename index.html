@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Meting Registratie</title>
+    <style>
+        :root {
+            --bg-color: #f4f6f9;
+            --card-color: #ffffff;
+            --text-color: #333333;
+            --primary-color: #4a90e2;
+            --border-color: #dddddd;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            padding: 15px;
+            display: flex;
+            justify-content: center;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 500px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        h1, h2 {
+            font-size: 1.4rem;
+            font-weight: 600;
+            margin-bottom: 5px;
+        }
+
+        .card {
+            background: var(--card-color);
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 6px;
+            font-weight: 500;
+            font-size: 0.9rem;
+        }
+
+        input {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            font-size: 1rem;
+            background: #fafafa;
+            -webkit-appearance: none;
+        }
+
+        input:focus {
+            outline: none;
+            border-color: var(--primary-color);
+            background: #fff;
+        }
+
+        button {
+            width: 100%;
+            padding: 14px;
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        button:active {
+            background-color: #357abd;
+        }
+
+        .log-list {
+            list-style: none;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .log-item {
+            background: #fafafa;
+            padding: 12px 15px;
+            border-radius: 8px;
+            border-left: 4px solid var(--primary-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .log-details {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+
+        .log-date {
+            font-size: 0.85rem;
+            color: #666;
+        }
+
+        .log-weight {
+            font-size: 1.2rem;
+            font-weight: 700;
+            color: #111;
+        }
+
+        .empty-state {
+            color: #888;
+            text-align: center;
+            font-style: italic;
+            padding: 10px 0;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <!-- Invoer Formulier -->
+    <div class="card">
+        <h1>Nieuwe Registratie</h1>
+        <form id="registrationForm">
+            <div class="form-group">
+                <label for="date">Datum</label>
+                <input type="date" id="date" required>
+            </div>
+            
+            <div class="form-group">
+                <label for="time">Tijd</label>
+                <input type="time" id="time" required>
+            </div>
+            
+            <div class="form-group">
+                <label for="weight">Gewicht (gram)</label>
+                <input type="number" id="weight" step="0.01" min="0.01" max="9.99" placeholder="0.00" required>
+            </div>
+            
+            <button type="submit">Opslaan</button>
+        </form>
+    </div>
+
+    <!-- Historie Overzicht -->
+    <div class="card">
+        <h2>Geschiedenis</h2>
+        <ul id="logList" class="log-list">
+            <!-- Dynamische items komen hier -->
+        </ul>
+    </div>
+</div>
+
+<script>
+    const form = document.getElementById('registrationForm');
+    const dateInput = document.getElementById('date');
+    const timeInput = document.getElementById('time');
+    const weightInput = document.getElementById('weight');
+    const logList = document.getElementById('logList');
+
+    // Zet de datum en tijd standaard op 'nu' bij het laden van de pagina
+    function setDefaultDateTime() {
+        const now = new Date();
+        
+        // Formatteer datum naar YYYY-MM-DD
+        const year = now.getFullYear();
+        const month = String(now.getMonth() + 1).padStart(2, '0');
+        const day = String(now.getDate()).padStart(2, '0');
+        dateInput.value = `${year}-${month}-${day}`;
+        
+        // Formatteer tijd naar HH:MM
+        const hours = String(now.getHours()).padStart(2, '0');
+        const minutes = String(now.getMinutes()).padStart(2, '0');
+        timeInput.value = `${hours}:${minutes}`;
+    }
+
+    // Haal registraties op uit localStorage
+    function getRegistrations() {
+        const data = localStorage.getItem('registrations');
+        return data ? JSON.parse(data) : [];
+    }
+
+    // Render de lijst met eerdere registraties
+    function renderList() {
+        const registrations = getRegistrations();
+        logList.innerHTML = '';
+
+        if (registrations.length === 0) {
+            logList.innerHTML = '<li class="empty-state">Nog geen registraties aanwezig.</li>';
+            return;
+        }
+
+        // Sorteer op datum en tijd (nieuwste bovenaan)
+        registrations.sort((a, b) => new Date(`${b.date}T${b.time}`) - new Date(`${a.date}T${a.time}`));
+
+        registrations.forEach(item => {
+            const li = document.createElement('li');
+            li.className = 'log-item';
+            
+            // Datum netter tonen (DD-MM-YYYY)
+            const [year, month, day] = item.date.split('-');
+            const formattedDate = `${day}-${month}-${year}`;
+
+            li.innerHTML = `
+                <div class="log-details">
+                    <span class="log-date">${formattedDate} om ${item.time}</span>
+                </div>
+                <div class="log-weight">${parseFloat(item.weight).toFixed(2)} g</div>
+            `;
+            logList.appendChild(li);
+        });
+    }
+
+    // Formulier versturen handle
+    form.addEventListener('submit', (e) => {
+        e.preventDefault();
+
+        const newRegistration = {
+            date: dateInput.value,
+            time: timeInput.value,
+            weight: parseFloat(weightInput.value).toFixed(2)
+        };
+
+        const registrations = getRegistrations();
+        registrations.push(newRegistration);
+        localStorage.setItem('registrations', JSON.stringify(registrations));
+
+        // Reset het gewichtsveld en zet tijd weer op actueel
+        weightInput.value = '';
+        setDefaultDateTime();
+        
+        // Update de lijst direct
+        renderList();
+    });
+
+    // Initialisatie
+    setDefaultDateTime();
+    renderList();
+</script>
+
+</body>
+</html>
