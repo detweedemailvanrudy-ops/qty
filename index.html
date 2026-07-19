@@ -93,36 +93,70 @@
             background-color: #357abd;
         }
 
-        .log-list {
-            list-style: none;
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
+        /* Accordion Stijlen */
+        .day-group {
+            margin-bottom: 10px;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            overflow: hidden;
         }
 
-        .log-item {
-            background: #fafafa;
+        .day-header {
+            background: #f8f9fa;
             padding: 12px 15px;
-            border-radius: 8px;
-            border-left: 4px solid var(--primary-color);
+            font-weight: 600;
+            font-size: 0.95rem;
+            cursor: pointer;
             display: flex;
             justify-content: space-between;
             align-items: center;
+            user-select: none;
         }
 
-        .log-details {
-            display: flex;
-            flex-direction: column;
-            gap: 2px;
+        .day-header:active {
+            background: #f0f2f5;
         }
 
-        .log-date {
-            font-size: 0.85rem;
+        .day-header::after {
+            content: '▼';
+            font-size: 0.75rem;
+            transition: transform 0.2s;
             color: #666;
         }
 
+        .day-group.open .day-header::after {
+            transform: rotate(180deg);
+        }
+
+        .day-content {
+            display: none;
+            background: #fff;
+            border-top: 1px solid var(--border-color);
+        }
+
+        .day-group.open .day-content {
+            display: block;
+        }
+
+        .log-item {
+            padding: 12px 15px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid #eee;
+        }
+
+        .log-item:last-child {
+            border-bottom: none;
+        }
+
+        .log-time {
+            font-size: 0.95rem;
+            color: #555;
+        }
+
         .log-weight {
-            font-size: 1.2rem;
+            font-size: 1.1rem;
             font-weight: 700;
             color: #111;
         }
@@ -164,9 +198,9 @@
     <!-- Historie Overzicht -->
     <div class="card">
         <h2>Geschiedenis</h2>
-        <ul id="logList" class="log-list">
-            <!-- Dynamische items komen hier -->
-        </ul>
+        <div id="historyContainer">
+            <!-- Dynamische klapmenu's komen hier -->
+        </div>
     </div>
 </div>
 
@@ -175,62 +209,97 @@
     const dateInput = document.getElementById('date');
     const timeInput = document.getElementById('time');
     const weightInput = document.getElementById('weight');
-    const logList = document.getElementById('logList');
+    const historyContainer = document.getElementById('historyContainer');
 
-    // Zet de datum en tijd standaard op 'nu' bij het laden van de pagina
     function setDefaultDateTime() {
         const now = new Date();
-        
-        // Formatteer datum naar YYYY-MM-DD
         const year = now.getFullYear();
         const month = String(now.getMonth() + 1).padStart(2, '0');
         const day = String(now.getDate()).padStart(2, '0');
         dateInput.value = `${year}-${month}-${day}`;
         
-        // Formatteer tijd naar HH:MM
         const hours = String(now.getHours()).padStart(2, '0');
         const minutes = String(now.getMinutes()).padStart(2, '0');
         timeInput.value = `${hours}:${minutes}`;
     }
 
-    // Haal registraties op uit localStorage
     function getRegistrations() {
         const data = localStorage.getItem('registrations');
         return data ? JSON.parse(data) : [];
     }
 
-    // Render de lijst met eerdere registraties
+    // Zet een YYYY-MM-DD string om naar een nette uitgeschreven Nederlandse datum met weekdag
+    function formatLongDate(dateString) {
+        const [year, month, day] = dateString.split('-');
+        // We gebruiken een vaste UTC constructie om tijdzoneverschuivingen op mobiel te voorkomen
+        const dateObj = new Date(Date.UTC(year, month - 1, day));
+        
+        const opties = { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' };
+        let formatted = dateObj.toLocaleDateString('nl-NL', opties);
+        
+        // Zorg dat de eerste letter van de weekdag een hoofdletter wordt
+        return formatted.charAt(0).toUpperCase() + formatted.slice(1);
+    }
+
     function renderList() {
         const registrations = getRegistrations();
-        logList.innerHTML = '';
+        historyContainer.innerHTML = '';
 
         if (registrations.length === 0) {
-            logList.innerHTML = '<li class="empty-state">Nog geen registraties aanwezig.</li>';
+            historyContainer.innerHTML = '<div class="empty-state">Nog geen registraties aanwezig.</div>';
             return;
         }
 
-        // Sorteer op datum en tijd (nieuwste bovenaan)
+        // 1. Sorteer alle metingen eerst chronologisch (nieuwste eerst)
         registrations.sort((a, b) => new Date(`${b.date}T${b.time}`) - new Date(`${a.date}T${a.time}`));
 
+        // 2. Groepeer metingen per unieke datum
+        const groups = {};
         registrations.forEach(item => {
-            const li = document.createElement('li');
-            li.className = 'log-item';
-            
-            // Datum netter tonen (DD-MM-YYYY)
-            const [year, month, day] = item.date.split('-');
-            const formattedDate = `${day}-${month}-${year}`;
+            if (!groups[item.date]) {
+                groups[item.date] = [];
+            }
+            groups[item.date].push(item);
+        });
 
-            li.innerHTML = `
-                <div class="log-details">
-                    <span class="log-date">${formattedDate} om ${item.time}</span>
-                </div>
-                <div class="log-weight">${parseFloat(item.weight).toFixed(2)} g</div>
-            `;
-            logList.appendChild(li);
+        // 3. Maak de DOM elementen aan voor elke dag
+        // Omdat de metingen al gesorteerd zijn, pakken we de unieke datums in volgorde
+        const sortedDates = Object.keys(groups).sort((a, b) => new Date(b) - new Date(a));
+
+        sortedDates.forEach((dateKey, index) => {
+            const dayGroup = document.createElement('div');
+            // De allernieuwste dag (index 0) klappen we standaard open voor het gemak
+            dayGroup.className = `day-group ${index === 0 ? 'open' : ''}`;
+
+            const header = document.createElement('div');
+            header.className = 'day-header';
+            header.textContent = formatLongDate(dateKey);
+
+            const content = document.createElement('div');
+            content.className = 'day-content';
+
+            // Voeg de metingen van die dag toe aan de inklapbare content
+            groups[dateKey].forEach(item => {
+                const itemDiv = document.createElement('div');
+                itemDiv.className = 'log-item';
+                itemDiv.innerHTML = `
+                    <span class="log-time">${item.time} uur</span>
+                    <span class="log-weight">${parseFloat(item.weight).toFixed(2)} g</span>
+                `;
+                content.appendChild(itemDiv);
+            });
+
+            // Klik-functionaliteit voor het open/dichtklappen
+            header.addEventListener('click', () => {
+                dayGroup.classList.toggle('open');
+            });
+
+            dayGroup.appendChild(header);
+            dayGroup.appendChild(content);
+            historyContainer.appendChild(dayGroup);
         });
     }
 
-    // Formulier versturen handle
     form.addEventListener('submit', (e) => {
         e.preventDefault();
 
@@ -244,15 +313,11 @@
         registrations.push(newRegistration);
         localStorage.setItem('registrations', JSON.stringify(registrations));
 
-        // Reset het gewichtsveld en zet tijd weer op actueel
         weightInput.value = '';
         setDefaultDateTime();
-        
-        // Update de lijst direct
         renderList();
     });
 
-    // Initialisatie
     setDefaultDateTime();
     renderList();
 </script>
