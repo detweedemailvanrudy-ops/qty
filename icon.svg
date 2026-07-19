@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <!-- Afgeronde App Icoon Achtergrond -->
+  <rect width="512" height="512" rx="110" fill="#eef2f7"/>
+  
+  <g transform="translate(26, 30) scale(0.9)">
+    <!-- Centrale Weegschaal Pilaar -->
+    <rect x="220" y="100" width="20" height="280" fill="#2d3748"/>
+    <rect x="180" y="380" width="100" height="20" rx="6" fill="#1a202c"/>
+    <rect x="150" y="400" width="160" height="15" rx="4" fill="#2d3748"/>
+    
+    <!-- Bovenste Scharnier en Dwarsbalk -->
+    <circle cx="230" cy="100" r="18" fill="#1a202c"/>
+    <circle cx="230" cy="100" r="6" fill="#718096"/>
+    <rect x="90" y="92" width="280" height="12" fill="#2d3748"/>
+    
+    <!-- Linker Schaal (Draden + Schaal) -->
+    <path d="M 90 100 L 40 240 M 90 100 L 140 240" stroke="#1a202c" stroke-width="4" stroke-linecap="round"/>
+    <path d="M 30 240 L 150 240 C 150 265 30 265 30 240 Z" fill="#4a5568"/>
+    <rect x="25" y="238" width="130" height="6" rx="2" fill="#1a202c"/>
+    
+    <!-- Gewicht Blokje (Isometrisch) -->
+    <g transform="translate(65, 185)">
+      <path d="M 25 0 L 50 12 L 25 24 L 0 12 Z" fill="#718096"/>
+      <path d="M 0 12 L 25 24 L 25 52 L 0 40 Z" fill="#2d3748"/>
+      <path d="M 25 24 L 50 12 L 50 40 L 25 52 Z" fill="#4a5568"/>
+      <path d="M 25 24 L 25 52" stroke="#1a202c" stroke-width="2"/>
+    </g>
+    
+    <!-- Rechter Schaal (Draden + Digitaal Display) -->
+    <path d="M 370 100 L 320 240 M 370 100 L 420 240" stroke="#1a202c" stroke-width="4" stroke-linecap="round"/>
+    
+    <!-- Digitaal Display Kastje -->
+    <g transform="translate(290, 230)">
+      <rect x="0" y="0" width="160" height="65" rx="14" fill="#1a202c" stroke="#2d3748" stroke-width="4"/>
+      <rect x="8" y="8" width="144" height="49" rx="8" fill="#2d3748"/>
+      <text x="72" y="42" font-family="Courier New, monospace, sans-serif" font-weight="900" font-size="28" fill="#ffffff" text-anchor="middle">0.00<tspan font-size="20" fill="#a0aec0">g</tspan></text>
+    </g>
+  </g>
+</svg>
