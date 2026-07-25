@@ -96,7 +96,6 @@
             background-color: #357abd;
         }
 
-        /* Accordion Stijlen */
         .day-group {
             margin-bottom: 10px;
             border: 1px solid var(--border-color);
@@ -194,6 +193,15 @@
             font-style: italic;
             padding: 10px 0;
         }
+
+        .debug-btn {
+            background: transparent;
+            color: #aaa;
+            font-size: 0.75rem;
+            padding: 8px;
+            margin-top: 10px;
+            border: 1px dashed #ccc;
+        }
     </style>
 </head>
 <body>
@@ -228,6 +236,7 @@
         <div id="historyContainer">
             <!-- Dynamische klapmenu's komen hier -->
         </div>
+        <button type="button" id="fixStorageBtn" class="debug-btn">Herstel / Test Opslag</button>
     </div>
 </div>
 
@@ -237,6 +246,7 @@
     const timeInput = document.getElementById('time');
     const weightInput = document.getElementById('weight');
     const historyContainer = document.getElementById('historyContainer');
+    const fixStorageBtn = document.getElementById('fixStorageBtn');
 
     function setDefaultDateTime() {
         const now = new Date();
@@ -250,29 +260,33 @@
         timeInput.value = `${hours}:${minutes}`;
     }
 
-    // Slimme ophaal-functie die oude data direct repareert als een ID ontbreekt
     function getRegistrations() {
-        const data = localStorage.getItem('registrations');
-        if (!data) return [];
-        
-        let parsed = JSON.parse(data);
-        let updated = false;
+        try {
+            const data = localStorage.getItem('registrations');
+            if (!data) return [];
+            
+            let parsed = JSON.parse(data);
+            if (!Array.isArray(parsed)) return [];
 
-        // Controleer of er oude items tussen zitten zonder uniek ID en geef ze alsnog een ID
-        parsed = parsed.map((item, index) => {
-            if (!item.id) {
-                updated = true;
-                return { ...item, id: Date.now() + index };
+            let updated = false;
+            parsed = parsed.map((item, index) => {
+                if (!item || typeof item !== 'object') return null;
+                if (!item.id) {
+                    updated = true;
+                    return { ...item, id: Date.now() + index };
+                }
+                return item;
+            }).filter(Boolean);
+
+            if (updated) {
+                saveRegistrations(parsed);
             }
-            return item;
-        });
 
-        // Als er data is aangepast (IDs toegevoegd), sla het direct op
-        if (updated) {
-            saveRegistrations(parsed);
+            return parsed;
+        } catch (e) {
+            console.error('Fout bij ophalen data:', e);
+            return [];
         }
-
-        return parsed;
     }
 
     function saveRegistrations(data) {
@@ -280,13 +294,15 @@
     }
 
     function formatLongDate(dateString) {
-        const [year, month, day] = dateString.split('-');
-        const dateObj = new Date(Date.UTC(year, month - 1, day));
-        
-        const opties = { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' };
-        let formatted = dateObj.toLocaleDateString('nl-NL', opties);
-        
-        return formatted.charAt(0).toUpperCase() + formatted.slice(1);
+        try {
+            const [year, month, day] = dateString.split('-');
+            const dateObj = new Date(Date.UTC(year, month - 1, day));
+            const opties = { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' };
+            let formatted = dateObj.toLocaleDateString('nl-NL', opties);
+            return formatted.charAt(0).toUpperCase() + formatted.slice(1);
+        } catch (e) {
+            return dateString;
+        }
     }
 
     function deleteRegistration(idToDelete, timeStr, weightStr) {
@@ -312,6 +328,7 @@
 
         const groups = {};
         registrations.forEach(item => {
+            if (!item.date) return;
             if (!groups[item.date]) {
                 groups[item.date] = [];
             }
@@ -324,7 +341,7 @@
             const dayGroup = document.createElement('div');
             dayGroup.className = `day-group ${index === 0 ? 'open' : ''}`;
 
-            const totalWeight = groups[dateKey].reduce((sum, item) => sum + parseFloat(item.weight), 0);
+            const totalWeight = groups[dateKey].reduce((sum, item) => sum + (parseFloat(item.weight) || 0), 0);
 
             const header = document.createElement('div');
             header.className = 'day-header';
@@ -341,14 +358,15 @@
             groups[dateKey].forEach(item => {
                 const itemDiv = document.createElement('div');
                 itemDiv.className = 'log-item';
+                const weightVal = parseFloat(item.weight) || 0;
                 itemDiv.innerHTML = `
-                    <span class="log-time">${item.time} uur</span>
-                    <span class="log-weight">${parseFloat(item.weight).toFixed(2)} g</span>
+                    <span class="log-time">${item.time || ''} uur</span>
+                    <span class="log-weight">${weightVal.toFixed(2)} g</span>
                 `;
 
                 itemDiv.addEventListener('click', (e) => {
                     e.stopPropagation();
-                    deleteRegistration(item.id, item.time, parseFloat(item.weight).toFixed(2));
+                    deleteRegistration(item.id, item.time, weightVal.toFixed(2));
                 });
 
                 content.appendChild(itemDiv);
@@ -381,6 +399,12 @@
         weightInput.value = '';
         setDefaultDateTime();
         renderList();
+    });
+
+    // Knop om geheugen op te schonen of te testen als er een corrupte entry in zat
+    fixStorageBtn.addEventListener('click', () => {
+        const raw = localStorage.getItem('registrations');
+        alert("Ruwe opslag inhoud:\n" + (raw || "Helemaal leeg"));
     });
 
     if ('serviceWorker' in navigator) {
