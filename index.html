@@ -13,6 +13,7 @@
             --text-color: #333333;
             --primary-color: #4a90e2;
             --border-color: #dddddd;
+            --danger-color: #e74c3c;
         }
 
         * {
@@ -164,6 +165,12 @@
             justify-content: space-between;
             align-items: center;
             border-bottom: 1px solid #eee;
+            cursor: pointer;
+            transition: background 0.15s;
+        }
+
+        .log-item:active {
+            background: #fef2f2; /* Subtiele rode gloed bij aantikken */
         }
 
         .log-item:last-child {
@@ -248,6 +255,10 @@
         return data ? JSON.parse(data) : [];
     }
 
+    function saveRegistrations(data) {
+        localStorage.setItem('registrations', JSON.stringify(data));
+    }
+
     function formatLongDate(dateString) {
         const [year, month, day] = dateString.split('-');
         const dateObj = new Date(Date.UTC(year, month - 1, day));
@@ -256,6 +267,18 @@
         let formatted = dateObj.toLocaleDateString('nl-NL', opties);
         
         return formatted.charAt(0).toUpperCase() + formatted.slice(1);
+    }
+
+    // Verwijder-functie
+    function deleteRegistration(idToDelete, timeStr, weightStr) {
+        const bevestigd = confirm(`Wil je de meting van ${timeStr} uur (${weightStr} g) verwijderen?`);
+        if (bevestigd) {
+            let registrations = getRegistrations();
+            // Filter de meting met het specifieke unieke ID eruit
+            registrations = registrations.filter(item => item.id !== idToDelete);
+            saveRegistrations(registrations);
+            renderList();
+        }
     }
 
     function renderList() {
@@ -279,20 +302,17 @@
             groups[item.date].push(item);
         });
 
-        // 3. Sorteer de unieke datums zelf ook van nieuw naar oud
+        // 3. Sorteer de unieke datums zelf van nieuw naar oud
         const sortedDates = Object.keys(groups).sort((a, b) => new Date(b) - new Date(a));
 
         sortedDates.forEach((dateKey, index) => {
             const dayGroup = document.createElement('div');
             dayGroup.className = `day-group ${index === 0 ? 'open' : ''}`;
 
-            // Bereken het totaal voor deze specifieke dag
             const totalWeight = groups[dateKey].reduce((sum, item) => sum + parseFloat(item.weight), 0);
 
             const header = document.createElement('div');
             header.className = 'day-header';
-            
-            // Maak de structuur voor de tekst en het dagtotaal badge
             header.innerHTML = `
                 <div class="day-info">
                     <span>${formatLongDate(dateKey)}</span>
@@ -303,7 +323,6 @@
             const content = document.createElement('div');
             content.className = 'day-content';
 
-            // Voeg de individuele metingen toe
             groups[dateKey].forEach(item => {
                 const itemDiv = document.createElement('div');
                 itemDiv.className = 'log-item';
@@ -311,6 +330,13 @@
                     <span class="log-time">${item.time} uur</span>
                     <span class="log-weight">${parseFloat(item.weight).toFixed(2)} g</span>
                 `;
+
+                // Voeg een klik-event toe op de specifieke regel om te verwijderen
+                itemDiv.addEventListener('click', (e) => {
+                    e.stopPropagation(); // Voorkom dat het klapmenu dichtklapt als je op de regel klikt
+                    deleteRegistration(item.id, item.time, parseFloat(item.weight).toFixed(2));
+                });
+
                 content.appendChild(itemDiv);
             });
 
@@ -328,6 +354,7 @@
         e.preventDefault();
 
         const newRegistration = {
+            id: Date.now(), // Uniek ID op basis van timestamp voor nauwkeurige verwijdering
             date: dateInput.value,
             time: timeInput.value,
             weight: parseFloat(weightInput.value).toFixed(2)
@@ -335,14 +362,13 @@
 
         const registrations = getRegistrations();
         registrations.push(newRegistration);
-        localStorage.setItem('registrations', JSON.stringify(registrations));
+        saveRegistrations(registrations);
 
         weightInput.value = '';
         setDefaultDateTime();
         renderList();
     });
 
-    // PWA Service Worker registratie script
     if ('serviceWorker' in navigator) {
         navigator.serviceWorker.register('./sw.js')
             .then(() => console.log('Service Worker geregistreerd.'))
