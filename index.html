@@ -170,7 +170,7 @@
         }
 
         .log-item:active {
-            background: #fef2f2; /* Subtiele rode gloed bij aantikken */
+            background: #fef2f2;
         }
 
         .log-item:last-child {
@@ -250,9 +250,29 @@
         timeInput.value = `${hours}:${minutes}`;
     }
 
+    // Slimme ophaal-functie die oude data direct repareert als een ID ontbreekt
     function getRegistrations() {
         const data = localStorage.getItem('registrations');
-        return data ? JSON.parse(data) : [];
+        if (!data) return [];
+        
+        let parsed = JSON.parse(data);
+        let updated = false;
+
+        // Controleer of er oude items tussen zitten zonder uniek ID en geef ze alsnog een ID
+        parsed = parsed.map((item, index) => {
+            if (!item.id) {
+                updated = true;
+                return { ...item, id: Date.now() + index };
+            }
+            return item;
+        });
+
+        // Als er data is aangepast (IDs toegevoegd), sla het direct op
+        if (updated) {
+            saveRegistrations(parsed);
+        }
+
+        return parsed;
     }
 
     function saveRegistrations(data) {
@@ -269,12 +289,10 @@
         return formatted.charAt(0).toUpperCase() + formatted.slice(1);
     }
 
-    // Verwijder-functie
     function deleteRegistration(idToDelete, timeStr, weightStr) {
         const bevestigd = confirm(`Wil je de meting van ${timeStr} uur (${weightStr} g) verwijderen?`);
         if (bevestigd) {
             let registrations = getRegistrations();
-            // Filter de meting met het specifieke unieke ID eruit
             registrations = registrations.filter(item => item.id !== idToDelete);
             saveRegistrations(registrations);
             renderList();
@@ -290,10 +308,8 @@
             return;
         }
 
-        // 1. Sorteer alle metingen chronologisch (nieuwste eerst)
         registrations.sort((a, b) => new Date(`${b.date}T${b.time}`) - new Date(`${a.date}T${a.time}`));
 
-        // 2. Groepeer metingen per unieke datum
         const groups = {};
         registrations.forEach(item => {
             if (!groups[item.date]) {
@@ -302,7 +318,6 @@
             groups[item.date].push(item);
         });
 
-        // 3. Sorteer de unieke datums zelf van nieuw naar oud
         const sortedDates = Object.keys(groups).sort((a, b) => new Date(b) - new Date(a));
 
         sortedDates.forEach((dateKey, index) => {
@@ -331,9 +346,8 @@
                     <span class="log-weight">${parseFloat(item.weight).toFixed(2)} g</span>
                 `;
 
-                // Voeg een klik-event toe op de specifieke regel om te verwijderen
                 itemDiv.addEventListener('click', (e) => {
-                    e.stopPropagation(); // Voorkom dat het klapmenu dichtklapt als je op de regel klikt
+                    e.stopPropagation();
                     deleteRegistration(item.id, item.time, parseFloat(item.weight).toFixed(2));
                 });
 
@@ -354,7 +368,7 @@
         e.preventDefault();
 
         const newRegistration = {
-            id: Date.now(), // Uniek ID op basis van timestamp voor nauwkeurige verwijdering
+            id: Date.now(),
             date: dateInput.value,
             time: timeInput.value,
             weight: parseFloat(weightInput.value).toFixed(2)
