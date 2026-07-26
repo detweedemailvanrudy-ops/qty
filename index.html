@@ -193,15 +193,6 @@
             font-style: italic;
             padding: 10px 0;
         }
-
-        .debug-btn {
-            background: transparent;
-            color: #aaa;
-            font-size: 0.75rem;
-            padding: 8px;
-            margin-top: 10px;
-            border: 1px dashed #ccc;
-        }
     </style>
 </head>
 <body>
@@ -226,7 +217,7 @@
                 <input type="number" id="weight" step="0.01" min="0.01" max="9.99" placeholder="0.00" required>
             </div>
             
-            <button type="submit">Opslaan</button>
+            <button type="submit" id="saveBtn">Opslaan</button>
         </form>
     </div>
 
@@ -234,19 +225,47 @@
     <div class="card">
         <h2>Geschiedenis</h2>
         <div id="historyContainer">
-            <!-- Dynamische klapmenu's komen hier -->
+            <div class="empty-state">Laden...</div>
         </div>
-        <button type="button" id="fixStorageBtn" class="debug-btn">Herstel / Test Opslag</button>
     </div>
 </div>
 
-<script>
+<!-- Firebase SDKs (v10 modular) -->
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+    import { 
+        getFirestore, 
+        collection, 
+        addDoc, 
+        deleteDoc, 
+        doc, 
+        onSnapshot, 
+        query, 
+        orderBy 
+    } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+    // 1. Vul hier jouw eigen Firebase configuratie in
+     const firebaseConfig = {
+  apiKey: "AIzaSyDmlaR-Bylvk-TtEma0h3iyvt3YLwhL7Vs",
+  authDomain: "sollhelper.firebaseapp.com",
+  projectId: "sollhelper",
+  storageBucket: "sollhelper.firebasestorage.app",
+  messagingSenderId: "788682019261",
+  appId: "1:788682019261:web:402702ab5247826ea502d4"
+};
+
+    // Initialize Firebase & Firestore
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+    const metingenCollection = collection(db, "metingen");
+
+    // DOM Elementen
     const form = document.getElementById('registrationForm');
     const dateInput = document.getElementById('date');
     const timeInput = document.getElementById('time');
     const weightInput = document.getElementById('weight');
     const historyContainer = document.getElementById('historyContainer');
-    const fixStorageBtn = document.getElementById('fixStorageBtn');
+    const saveBtn = document.getElementById('saveBtn');
 
     function setDefaultDateTime() {
         const now = new Date();
@@ -258,39 +277,6 @@
         const hours = String(now.getHours()).padStart(2, '0');
         const minutes = String(now.getMinutes()).padStart(2, '0');
         timeInput.value = `${hours}:${minutes}`;
-    }
-
-    function getRegistrations() {
-        try {
-            const data = localStorage.getItem('registrations');
-            if (!data) return [];
-            
-            let parsed = JSON.parse(data);
-            if (!Array.isArray(parsed)) return [];
-
-            let updated = false;
-            parsed = parsed.map((item, index) => {
-                if (!item || typeof item !== 'object') return null;
-                if (!item.id) {
-                    updated = true;
-                    return { ...item, id: Date.now() + index };
-                }
-                return item;
-            }).filter(Boolean);
-
-            if (updated) {
-                saveRegistrations(parsed);
-            }
-
-            return parsed;
-        } catch (e) {
-            console.error('Fout bij ophalen data:', e);
-            return [];
-        }
-    }
-
-    function saveRegistrations(data) {
-        localStorage.setItem('registrations', JSON.stringify(data));
     }
 
     function formatLongDate(dateString) {
@@ -305,106 +291,123 @@
         }
     }
 
-    function deleteRegistration(idToDelete, timeStr, weightStr) {
-        const bevestigd = confirm(`Wil je de meting van ${timeStr} uur (${weightStr} g) verwijderen?`);
-        if (bevestigd) {
-            let registrations = getRegistrations();
-            registrations = registrations.filter(item => item.id !== idToDelete);
-            saveRegistrations(registrations);
-            renderList();
-        }
-    }
+    // Live luisteren naar Firestore updates met onSnapshot
+    function listenToMetingen() {
+        // Sorteer op datum en tijd (nieuwste eerst)
+        const q = query(metingenCollection, orderBy("date", "desc"), orderBy("time", "desc"));
 
-    function renderList() {
-        const registrations = getRegistrations();
-        historyContainer.innerHTML = '';
+        onSnapshot(q, (snapshot) => {
+            historyContainer.innerHTML = '';
 
-        if (registrations.length === 0) {
-            historyContainer.innerHTML = '<div class="empty-state">Nog geen registraties aanwezig.</div>';
-            return;
-        }
-
-        registrations.sort((a, b) => new Date(`${b.date}T${b.time}`) - new Date(`${a.date}T${a.time}`));
-
-        const groups = {};
-        registrations.forEach(item => {
-            if (!item.date) return;
-            if (!groups[item.date]) {
-                groups[item.date] = [];
+            if (snapshot.empty) {
+                historyContainer.innerHTML = '<div class="empty-state">Nog geen registraties aanwezig.</div>';
+                return;
             }
-            groups[item.date].push(item);
-        });
 
-        const sortedDates = Object.keys(groups).sort((a, b) => new Date(b) - new Date(a));
+            // Verzamel data
+            const groups = {};
+            snapshot.docs.forEach(docSnap => {
+                const data = docSnap.data();
+                const item = {
+                    id: docSnap.id, // Uniek Firestore document ID
+                    ...data
+                };
 
-        sortedDates.forEach((dateKey, index) => {
-            const dayGroup = document.createElement('div');
-            dayGroup.className = `day-group ${index === 0 ? 'open' : ''}`;
+                if (!groups[item.date]) {
+                    groups[item.date] = [];
+                }
+                groups[item.date].push(item);
+            });
 
-            const totalWeight = groups[dateKey].reduce((sum, item) => sum + (parseFloat(item.weight) || 0), 0);
+            const sortedDates = Object.keys(groups).sort((a, b) => new Date(b) - new Date(a));
 
-            const header = document.createElement('div');
-            header.className = 'day-header';
-            header.innerHTML = `
-                <div class="day-info">
-                    <span>${formatLongDate(dateKey)}</span>
-                    <span class="day-total">${totalWeight.toFixed(2)} g</span>
-                </div>
-            `;
+            sortedDates.forEach((dateKey, index) => {
+                const dayGroup = document.createElement('div');
+                dayGroup.className = `day-group ${index === 0 ? 'open' : ''}`;
 
-            const content = document.createElement('div');
-            content.className = 'day-content';
+                const totalWeight = groups[dateKey].reduce((sum, item) => sum + (parseFloat(item.weight) || 0), 0);
 
-            groups[dateKey].forEach(item => {
-                const itemDiv = document.createElement('div');
-                itemDiv.className = 'log-item';
-                const weightVal = parseFloat(item.weight) || 0;
-                itemDiv.innerHTML = `
-                    <span class="log-time">${item.time || ''} uur</span>
-                    <span class="log-weight">${weightVal.toFixed(2)} g</span>
+                const header = document.createElement('div');
+                header.className = 'day-header';
+                header.innerHTML = `
+                    <div class="day-info">
+                        <span>${formatLongDate(dateKey)}</span>
+                        <span class="day-total">${totalWeight.toFixed(2)} g</span>
+                    </div>
                 `;
 
-                itemDiv.addEventListener('click', (e) => {
-                    e.stopPropagation();
-                    deleteRegistration(item.id, item.time, weightVal.toFixed(2));
+                const content = document.createElement('div');
+                content.className = 'day-content';
+
+                groups[dateKey].forEach(item => {
+                    const itemDiv = document.createElement('div');
+                    itemDiv.className = 'log-item';
+                    const weightVal = parseFloat(item.weight) || 0;
+                    itemDiv.innerHTML = `
+                        <span class="log-time">${item.time || ''} uur</span>
+                        <span class="log-weight">${weightVal.toFixed(2)} g</span>
+                    `;
+
+                    // Verwijder-event op Firestore document ID
+                    itemDiv.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        deleteRegistration(item.id, item.time, weightVal.toFixed(2));
+                    });
+
+                    content.appendChild(itemDiv);
                 });
 
-                content.appendChild(itemDiv);
-            });
+                header.addEventListener('click', () => {
+                    dayGroup.classList.toggle('open');
+                });
 
-            header.addEventListener('click', () => {
-                dayGroup.classList.toggle('open');
+                dayGroup.appendChild(header);
+                dayGroup.appendChild(content);
+                historyContainer.appendChild(dayGroup);
             });
-
-            dayGroup.appendChild(header);
-            dayGroup.appendChild(content);
-            historyContainer.appendChild(dayGroup);
+        }, (error) => {
+            console.error("Fout bij ophalen metingen:", error);
+            historyContainer.innerHTML = '<div class="empty-state">Fout bij laden van gegevens. Controleer de Firebase instellingen.</div>';
         });
     }
 
-    form.addEventListener('submit', (e) => {
+    // Verwijder-functie
+    async function deleteRegistration(docId, timeStr, weightStr) {
+        const bevestigd = confirm(`Wil je de meting van ${timeStr} uur (${weightStr} g) verwijderen uit de cloud?`);
+        if (bevestigd) {
+            try {
+                await deleteDoc(doc(db, "metingen", docId));
+                // Lijst ververst automatisch dankzij onSnapshot
+            } catch (error) {
+                console.error("Fout bij verwijderen:", error);
+                alert("Kon het item niet verwijderen. Controleer de netwerkverbinding.");
+            }
+        }
+    }
+
+    // Nieuwe meting opslaan
+    form.addEventListener('submit', async (e) => {
         e.preventDefault();
+        saveBtn.disabled = true;
+        saveBtn.textContent = 'Opslaan...';
 
-        const newRegistration = {
-            id: Date.now(),
-            date: dateInput.value,
-            time: timeInput.value,
-            weight: parseFloat(weightInput.value).toFixed(2)
-        };
+        try {
+            await addDoc(metingenCollection, {
+                date: dateInput.value,
+                time: timeInput.value,
+                weight: parseFloat(weightInput.value).toFixed(2),
+                createdAt: new Date()
+            });
 
-        const registrations = getRegistrations();
-        registrations.push(newRegistration);
-        saveRegistrations(registrations);
-
-        weightInput.value = '';
-        setDefaultDateTime();
-        renderList();
-    });
-
-    // Knop om geheugen op te schonen of te testen als er een corrupte entry in zat
-    fixStorageBtn.addEventListener('click', () => {
-        const raw = localStorage.getItem('registrations');
-        alert("Ruwe opslag inhoud:\n" + (raw || "Helemaal leeg"));
+            weightInput.value = '';
+            setDefaultDateTime();
+        } catch (error) {
+            console.error("Fout bij opslaan:", error);
+            alert("Er is iets misgegaan bij het opslaan in Firebase.");
+        } finally {
+            saveBtn.disabled = false;
+            saveBtn.textContent = 'Opslaan';
+        }
     });
 
     if ('serviceWorker' in navigator) {
@@ -414,7 +417,7 @@
     }
 
     setDefaultDateTime();
-    renderList();
+    listenToMetingen();
 </script>
 
 </body>
