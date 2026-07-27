@@ -6,246 +6,158 @@
     <title>Meting Registratie</title>
     <link rel="icon" type="image/svg+xml" href="icon.svg">
     <link rel="manifest" href="manifest.json">
+    <!-- Chart.js voor de week-grafiek -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         :root {
             --bg-color: #f4f6f9;
             --card-color: #ffffff;
             --text-color: #333333;
-            --primary-color: #4a90e2;
-            --border-color: #dddddd;
-            --danger-color: #e74c3c;
+            --primary-color: #3b71ca;
+            --primary-light: rgba(59, 113, 202, 0.15);
+            --border-color: #e0e0e0;
         }
 
-        * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-        }
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
 
-        body {
-            background-color: var(--bg-color);
-            color: var(--text-color);
-            padding: 15px;
-            display: flex;
-            justify-content: center;
-        }
+        body { background-color: var(--bg-color); color: var(--text-color); padding: 15px; display: flex; justify-content: center; }
 
-        .container {
-            width: 100%;
-            max-width: 500px;
-            display: flex;
-            flex-direction: column;
-            gap: 20px;
-        }
+        .container { width: 100%; max-width: 500px; display: flex; flex-direction: column; gap: 15px; }
 
-        h1, h2 {
-            font-size: 1.4rem;
-            font-weight: 600;
-            margin-bottom: 5px;
-        }
+        /* Navigation Tabs */
+        .tab-nav { display: flex; border-bottom: 2px solid var(--border-color); background: #fff; border-radius: 10px 10px 0 0; overflow: hidden; }
+        .tab-btn { flex: 1; padding: 14px 0; text-align: center; font-weight: 600; font-size: 0.95rem; border: none; background: transparent; cursor: pointer; color: #666; border-bottom: 3px solid transparent; transition: all 0.2s; }
+        .tab-btn.active { color: var(--primary-color); border-bottom-color: var(--primary-color); }
 
-        .card {
-            background: var(--card-color);
-            padding: 20px;
-            border-radius: 12px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
-        }
+        .tab-content { display: none; }
+        .tab-content.active { display: flex; flex-direction: column; gap: 15px; }
 
-        .form-group {
-            margin-bottom: 15px;
-        }
+        .card { background: var(--card-color); padding: 20px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
 
-        label {
-            display: block;
-            margin-bottom: 6px;
-            font-weight: 500;
-            font-size: 0.9rem;
-        }
+        h1, h2 { font-size: 1.3rem; font-weight: 600; margin-bottom: 15px; }
 
-        input {
-            width: 100%;
-            padding: 12px;
-            border: 1px solid var(--border-color);
-            border-radius: 8px;
-            font-size: 1rem;
-            background: #fafafa;
-            -webkit-appearance: none;
-        }
+        .form-group { margin-bottom: 12px; }
+        label { display: block; margin-bottom: 5px; font-weight: 500; font-size: 0.85rem; }
+        input { width: 100%; padding: 10px 12px; border: 1px solid var(--border-color); border-radius: 8px; font-size: 1rem; }
 
-        input:focus {
-            outline: none;
-            border-color: var(--primary-color);
-            background: #fff;
-        }
+        button.btn-primary { width: 100%; padding: 12px; background-color: var(--primary-color); color: white; border: none; border-radius: 8px; font-size: 1rem; font-weight: 600; cursor: pointer; }
 
-        button {
-            width: 100%;
-            padding: 14px;
-            background-color: var(--primary-color);
-            color: white;
-            border: none;
-            border-radius: 8px;
-            font-size: 1rem;
-            font-weight: 600;
-            cursor: pointer;
-            transition: background 0.2s;
-        }
+        /* Selector Header (< 20-26 juli >) */
+        .period-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
+        .nav-arrow { background: none; border: none; font-size: 1.3rem; cursor: pointer; padding: 5px 12px; color: #555; }
+        .period-title { text-align: center; }
+        .period-title h3 { font-size: 1.1rem; font-weight: 700; }
+        .period-title span { font-size: 0.85rem; color: var(--primary-color); font-weight: 600; }
 
-        button:active {
-            background-color: #357abd;
-        }
+        /* List items */
+        .data-list { display: flex; flex-direction: column; gap: 10px; }
+        .list-row { display: flex; justify-content: space-between; align-items: center; padding: 12px 15px; background: #fff; border-radius: 8px; border: 1px solid var(--border-color); }
+        .list-label { font-weight: 500; font-size: 0.95rem; }
+        .list-val { font-weight: 700; color: #111; font-size: 1rem; }
 
-        .day-group {
-            margin-bottom: 10px;
-            border: 1px solid var(--border-color);
-            border-radius: 8px;
-            overflow: hidden;
-        }
+        /* Month Bubble Grid */
+        .calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px; margin-bottom: 15px; text-align: center; }
+        .day-name { font-size: 0.75rem; font-weight: 700; color: #777; margin-bottom: 5px; }
+        .cell { aspect-ratio: 1; display: flex; align-items: center; justify-content: center; position: relative; }
+        .bubble { width: 34px; height: 34px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.8rem; font-weight: 600; color: #333; transition: all 0.2s; }
+        .bubble.empty { color: #aaa; background: transparent; }
+        .bubble.active { background: var(--primary-light); color: var(--primary-color); }
+        .bubble.high { background: var(--primary-color); color: #fff; }
 
-        .day-header {
-            background: #f8f9fa;
-            padding: 12px 15px;
-            font-weight: 600;
-            font-size: 0.95rem;
-            cursor: pointer;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            user-select: none;
-        }
-
-        .day-header:active {
-            background: #f0f2f5;
-        }
-
-        .day-info {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            flex-grow: 1;
-            justify-content: space-between;
-            margin-right: 15px;
-        }
-
-        .day-total {
-            font-size: 0.9rem;
-            color: var(--primary-color);
-            background: rgba(74, 144, 226, 0.1);
-            padding: 2px 8px;
-            border-radius: 12px;
-            font-weight: 700;
-        }
-
-        .day-header::after {
-            content: '▼';
-            font-size: 0.75rem;
-            transition: transform 0.2s;
-            color: #666;
-        }
-
-        .day-group.open .day-header::after {
-            transform: rotate(180deg);
-        }
-
-        .day-content {
-            display: none;
-            background: #fff;
-            border-top: 1px solid var(--border-color);
-        }
-
-        .day-group.open .day-content {
-            display: block;
-        }
-
-        .log-item {
-            padding: 12px 15px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            border-bottom: 1px solid #eee;
-            cursor: pointer;
-            transition: background 0.15s;
-        }
-
-        .log-item:active {
-            background: #fef2f2;
-        }
-
-        .log-item:last-child {
-            border-bottom: none;
-        }
-
-        .log-time {
-            font-size: 0.95rem;
-            color: #555;
-        }
-
-        .log-weight {
-            font-size: 1.1rem;
-            font-weight: 700;
-            color: #111;
-        }
-
-        .empty-state {
-            color: #888;
-            text-align: center;
-            font-style: italic;
-            padding: 10px 0;
-        }
+        /* History accordion */
+        .day-group { border: 1px solid var(--border-color); border-radius: 8px; margin-bottom: 10px; overflow: hidden; }
+        .day-header { background: #f8f9fa; padding: 12px 15px; font-weight: 600; font-size: 0.95rem; cursor: pointer; display: flex; justify-content: space-between; align-items: center; }
+        .day-content { display: none; background: #fff; border-top: 1px solid var(--border-color); }
+        .day-group.open .day-content { display: block; }
+        .log-item { padding: 10px 15px; display: flex; justify-content: space-between; border-bottom: 1px solid #eee; cursor: pointer; }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <!-- Invoer Formulier -->
-    <div class="card">
-        <h1>Nieuwe Registratie</h1>
-        <form id="registrationForm">
-            <div class="form-group">
-                <label for="date">Datum</label>
-                <input type="date" id="date" required>
-            </div>
-            
-            <div class="form-group">
-                <label for="time">Tijd</label>
-                <input type="time" id="time" required>
-            </div>
-            
-            <div class="form-group">
-                <label for="weight">Gewicht (gram)</label>
-                <input type="number" id="weight" step="0.01" min="0.01" max="9.99" placeholder="0.00" required>
-            </div>
-            
-            <button type="submit" id="saveBtn">Opslaan</button>
-        </form>
+
+    <!-- Tab Bar -->
+    <div class="tab-nav">
+        <button class="tab-btn active" onclick="switchTab('invoer')">Invoer</button>
+        <button class="tab-btn" onclick="switchTab('week')">Week</button>
+        <button class="tab-btn" onclick="switchTab('maand')">Maand</button>
     </div>
 
-    <!-- Historie Overzicht -->
-    <div class="card">
-        <h2>Geschiedenis</h2>
-        <div id="historyContainer">
-            <div class="empty-state">Laden...</div>
+    <!-- TAB 1: INVOER & HISTORIE -->
+    <div id="tab-invoer" class="tab-content active">
+        <div class="card">
+            <h1>Nieuwe Registratie</h1>
+            <form id="registrationForm">
+                <div class="form-group"><label>Datum</label><input type="date" id="date" required></div>
+                <div class="form-group"><label>Tijd</label><input type="time" id="time" required></div>
+                <div class="form-group"><label>Gewicht (gram)</label><input type="number" id="weight" step="0.01" min="0.01" max="9.99" placeholder="0.00" required></div>
+                <button type="submit" id="saveBtn" class="btn-primary">Opslaan</button>
+            </form>
+        </div>
+
+        <div class="card">
+            <h2>Geschiedenis</h2>
+            <div id="historyContainer"><div style="color:#888; text-align:center;">Laden...</div></div>
         </div>
     </div>
+
+    <!-- TAB 2: WEEK OVERZICHT -->
+    <div id="tab-week" class="tab-content">
+        <div class="card">
+            <div class="period-header">
+                <button class="nav-arrow" onclick="changeWeek(-1)">&lt;</button>
+                <div class="period-title">
+                    <h3 id="weekTitle">--</h3>
+                    <span id="weekTotal">0.00 g</span>
+                </div>
+                <button class="nav-arrow" onclick="changeWeek(1)">&gt;</button>
+            </div>
+            
+            <div style="height: 220px; position: relative;">
+                <canvas id="weekChart"></canvas>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>Dagen deze week</h2>
+            <div id="weekList" class="data-list"></div>
+        </div>
+    </div>
+
+    <!-- TAB 3: MAAND OVERZICHT -->
+    <div id="tab-maand" class="tab-content">
+        <div class="card">
+            <div class="period-header">
+                <button class="nav-arrow" onclick="changeMonth(-1)">&lt;</button>
+                <div class="period-title">
+                    <h3 id="monthTitle">--</h3>
+                    <span id="monthTotal">0.00 g</span>
+                </div>
+                <button class="nav-arrow" onclick="changeMonth(1)">&gt;</button>
+            </div>
+
+            <!-- Kalender Grid -->
+            <div class="calendar-grid">
+                <div class="day-name">ma</div><div class="day-name">di</div><div class="day-name">wo</div>
+                <div class="day-name">do</div><div class="day-name">vr</div><div class="day-name">za</div><div class="day-name">zo</div>
+            </div>
+            <div id="calendarCells" class="calendar-grid"></div>
+        </div>
+
+        <div class="card">
+            <h2>Weken deze maand</h2>
+            <div id="monthWeekList" class="data-list"></div>
+        </div>
+    </div>
+
 </div>
 
-<!-- Firebase SDKs (v10 modular) -->
+<!-- Firebase SDKs -->
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-    import { 
-        getFirestore, 
-        collection, 
-        addDoc, 
-        deleteDoc, 
-        doc, 
-        onSnapshot, 
-        query, 
-        orderBy 
-    } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+    import { getFirestore, collection, addDoc, deleteDoc, doc, onSnapshot, query, orderBy } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
-    // 1. Vul hier jouw eigen Firebase configuratie in
-     const firebaseConfig = {
+      const firebaseConfig = {
   apiKey: "AIzaSyDmlaR-Bylvk-TtEma0h3iyvt3YLwhL7Vs",
   authDomain: "sollhelper.firebaseapp.com",
   projectId: "sollhelper",
@@ -254,171 +166,235 @@
   appId: "1:788682019261:web:402702ab5247826ea502d4"
 };
 
-    // Initialize Firebase & Firestore
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
     const metingenCollection = collection(db, "metingen");
 
-    // DOM Elementen
+    // Global state
+    let allData = [];
+    let currentWeekOffset = 0;
+    let currentMonthOffset = 0;
+    let chartInstance = null;
+
+    // DOM Elements
     const form = document.getElementById('registrationForm');
     const dateInput = document.getElementById('date');
     const timeInput = document.getElementById('time');
     const weightInput = document.getElementById('weight');
-    const historyContainer = document.getElementById('historyContainer');
     const saveBtn = document.getElementById('saveBtn');
+
+    // Tab switcher
+    window.switchTab = function(tabName) {
+        document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+        document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+        
+        event.target.classList.add('active');
+        document.getElementById(`tab-${tabName}`).classList.add('active');
+
+        if(tabName === 'week') renderWeekView();
+        if(tabName === 'maand') renderMonthView();
+    };
 
     function setDefaultDateTime() {
         const now = new Date();
-        const year = now.getFullYear();
-        const month = String(now.getMonth() + 1).padStart(2, '0');
-        const day = String(now.getDate()).padStart(2, '0');
-        dateInput.value = `${year}-${month}-${day}`;
-        
-        const hours = String(now.getHours()).padStart(2, '0');
-        const minutes = String(now.getMinutes()).padStart(2, '0');
-        timeInput.value = `${hours}:${minutes}`;
+        dateInput.value = now.toISOString().split('T')[0];
+        timeInput.value = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
     }
 
-    function formatLongDate(dateString) {
-        try {
-            const [year, month, day] = dateString.split('-');
-            const dateObj = new Date(Date.UTC(year, month - 1, day));
-            const opties = { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' };
-            let formatted = dateObj.toLocaleDateString('nl-NL', opties);
-            return formatted.charAt(0).toUpperCase() + formatted.slice(1);
-        } catch (e) {
-            return dateString;
-        }
-    }
-
-    // Live luisteren naar Firestore updates met onSnapshot
-    function listenToMetingen() {
-        // Sorteer op datum en tijd (nieuwste eerst)
-        const q = query(metingenCollection, orderBy("date", "desc"), orderBy("time", "desc"));
-
+    // Live data van Firestore
+    function listenToData() {
+        const q = query(metingenCollection, orderBy("date", "desc"));
         onSnapshot(q, (snapshot) => {
-            historyContainer.innerHTML = '';
-
-            if (snapshot.empty) {
-                historyContainer.innerHTML = '<div class="empty-state">Nog geen registraties aanwezig.</div>';
-                return;
-            }
-
-            // Verzamel data
-            const groups = {};
+            allData = [];
             snapshot.docs.forEach(docSnap => {
-                const data = docSnap.data();
-                const item = {
-                    id: docSnap.id, // Uniek Firestore document ID
-                    ...data
-                };
-
-                if (!groups[item.date]) {
-                    groups[item.date] = [];
-                }
-                groups[item.date].push(item);
+                allData.push({ id: docSnap.id, ...docSnap.data() });
             });
 
-            const sortedDates = Object.keys(groups).sort((a, b) => new Date(b) - new Date(a));
-
-            sortedDates.forEach((dateKey, index) => {
-                const dayGroup = document.createElement('div');
-                dayGroup.className = `day-group ${index === 0 ? 'open' : ''}`;
-
-                const totalWeight = groups[dateKey].reduce((sum, item) => sum + (parseFloat(item.weight) || 0), 0);
-
-                const header = document.createElement('div');
-                header.className = 'day-header';
-                header.innerHTML = `
-                    <div class="day-info">
-                        <span>${formatLongDate(dateKey)}</span>
-                        <span class="day-total">${totalWeight.toFixed(2)} g</span>
-                    </div>
-                `;
-
-                const content = document.createElement('div');
-                content.className = 'day-content';
-
-                groups[dateKey].forEach(item => {
-                    const itemDiv = document.createElement('div');
-                    itemDiv.className = 'log-item';
-                    const weightVal = parseFloat(item.weight) || 0;
-                    itemDiv.innerHTML = `
-                        <span class="log-time">${item.time || ''} uur</span>
-                        <span class="log-weight">${weightVal.toFixed(2)} g</span>
-                    `;
-
-                    // Verwijder-event op Firestore document ID
-                    itemDiv.addEventListener('click', (e) => {
-                        e.stopPropagation();
-                        deleteRegistration(item.id, item.time, weightVal.toFixed(2));
-                    });
-
-                    content.appendChild(itemDiv);
-                });
-
-                header.addEventListener('click', () => {
-                    dayGroup.classList.toggle('open');
-                });
-
-                dayGroup.appendChild(header);
-                dayGroup.appendChild(content);
-                historyContainer.appendChild(dayGroup);
-            });
-        }, (error) => {
-            console.error("Fout bij ophalen metingen:", error);
-            historyContainer.innerHTML = '<div class="empty-state">Fout bij laden van gegevens. Controleer de Firebase instellingen.</div>';
+            renderHistoryList();
+            renderWeekView();
+            renderMonthView();
         });
     }
 
-    // Verwijder-functie
-    async function deleteRegistration(docId, timeStr, weightStr) {
-        const bevestigd = confirm(`Wil je de meting van ${timeStr} uur (${weightStr} g) verwijderen uit de cloud?`);
-        if (bevestigd) {
-            try {
-                await deleteDoc(doc(db, "metingen", docId));
-                // Lijst ververst automatisch dankzij onSnapshot
-            } catch (error) {
-                console.error("Fout bij verwijderen:", error);
-                alert("Kon het item niet verwijderen. Controleer de netwerkverbinding.");
-            }
+    // Render Invoer/Log History
+    function renderHistoryList() {
+        const container = document.getElementById('historyContainer');
+        container.innerHTML = '';
+
+        if (!allData.length) {
+            container.innerHTML = '<div style="color:#888; text-align:center;">Geen registraties.</div>';
+            return;
         }
+
+        const groups = {};
+        allData.forEach(item => {
+            if (!groups[item.date]) groups[item.date] = [];
+            groups[item.date].push(item);
+        });
+
+        Object.keys(groups).sort((a,b) => b.localeCompare(a)).forEach((dateKey, index) => {
+            groups[dateKey].sort((a,b) => (b.time||'').localeCompare(a.time||''));
+
+            const group = document.createElement('div');
+            group.className = `day-group ${index === 0 ? 'open' : ''}`;
+            const total = groups[dateKey].reduce((sum, i) => sum + (parseFloat(i.weight)||0), 0);
+
+            group.innerHTML = `
+                <div class="day-header" onclick="this.parentElement.classList.toggle('open')">
+                    <span>${formatLongDate(dateKey)}</span>
+                    <span style="color:var(--primary-color); font-weight:700;">${total.toFixed(2)} g</span>
+                </div>
+                <div class="day-content">
+                    ${groups[dateKey].map(i => `
+                        <div class="log-item" onclick="deleteItem('${i.id}', '${i.time}', '${i.weight}')">
+                            <span>${i.time} uur</span>
+                            <b>${parseFloat(i.weight).toFixed(2)} g</b>
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+            container.appendChild(group);
+        });
     }
 
-    // Nieuwe meting opslaan
+    // --- WEEK VIEW LOGICA ---
+    window.changeWeek = function(dir) { currentWeekOffset += dir; renderWeekView(); };
+
+    function renderWeekView() {
+        const now = new Date();
+        now.setDate(now.getDate() + (currentWeekOffset * 7));
+
+        // Bepaal start (maandag) en eind (zondag) van de week
+        const dayOfWeek = now.getDay() === 0 ? 6 : now.getDay() - 1;
+        const monday = new Date(now);
+        monday.setDate(now.getDate() - dayOfWeek);
+
+        const days = [];
+        let weekTotalVal = 0;
+
+        for(let i = 0; i < 7; i++) {
+            const d = new Date(monday);
+            d.setDate(monday.getDate() + i);
+            const dateStr = d.toISOString().split('T')[0];
+            
+            const dayMetingen = allData.filter(x => x.date === dateStr);
+            const sum = dayMetingen.reduce((a, b) => a + (parseFloat(b.weight) || 0), 0);
+            weekTotalVal += sum;
+
+            days.push({ dateStr, dayName: d.toLocaleDateString('nl-NL', { weekday: 'short' }), dateFormatted: d.toLocaleDateString('nl-NL', { day: 'numeric', month: 'short' }), total: sum });
+        }
+
+        const sunday = new Date(monday); sunday.setDate(monday.getDate() + 6);
+        document.getElementById('weekTitle').textContent = `${monday.getDate()}–${sunday.getDate()} ${sunday.toLocaleDateString('nl-NL', { month: 'long' })}`;
+        document.getElementById('weekTotal').textContent = `${weekTotalVal.toFixed(2)} g`;
+
+        // Render Staafdiagram
+        const ctx = document.getElementById('weekChart').getContext('2d');
+        if (chartInstance) chartInstance.destroy();
+
+        chartInstance = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: days.map(d => d.dayName),
+                datasets: [{
+                    data: days.map(d => d.total),
+                    backgroundColor: '#3b71ca',
+                    borderRadius: 6
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: {
+                    y: { beginAtZero: true, grid: { color: '#eee' } },
+                    x: { grid: { display: false } }
+                }
+            }
+        });
+
+        // Render Lijst
+        const listContainer = document.getElementById('weekList');
+        listContainer.innerHTML = days.map(d => `
+            <div class="list-row">
+                <span class="list-label">${d.dayName} ${d.dateFormatted}</span>
+                <span class="list-val">${d.total.toFixed(2)} g</span>
+            </div>
+        `).join('');
+    }
+
+    // --- MAAND VIEW LOGICA ---
+    window.changeMonth = function(dir) { currentMonthOffset += dir; renderMonthView(); };
+
+    function renderMonthView() {
+        const now = new Date();
+        now.setMonth(now.getMonth() + currentMonthOffset);
+
+        const year = now.getFullYear();
+        const month = now.getMonth();
+
+        document.getElementById('monthTitle').textContent = `${now.toLocaleDateString('nl-NL', { month: 'long', year: 'numeric' })}`;
+
+        const firstDay = new Date(year, month, 1);
+        const lastDay = new Date(year, month + 1, 0);
+
+        let monthTotalVal = 0;
+        const gridContainer = document.getElementById('calendarCells');
+        gridContainer.innerHTML = '';
+
+        // Padding dagen voor de eerste van de maand
+        let startOffset = firstDay.getDay() === 0 ? 6 : firstDay.getDay() - 1;
+        for(let i = 0; i < startOffset; i++) {
+            gridContainer.appendChild(document.createElement('div'));
+        }
+
+        for(let day = 1; day <= lastDay.getDate(); day++) {
+            const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+            const dayMetingen = allData.filter(x => x.date === dateStr);
+            const sum = dayMetingen.reduce((a, b) => a + (parseFloat(b.weight) || 0), 0);
+            monthTotalVal += sum;
+
+            const cell = document.createElement('div');
+            cell.className = 'cell';
+            
+            let bubbleClass = 'bubble empty';
+            if (sum > 0) bubbleClass = sum > 0.3 ? 'bubble high' : 'bubble active';
+
+            cell.innerHTML = `<div class="${bubbleClass}">${day}</div>`;
+            gridContainer.appendChild(cell);
+        }
+
+        document.getElementById('monthTotal').textContent = `${monthTotalVal.toFixed(2)} g`;
+    }
+
+    // Helpers
+    function formatLongDate(dStr) {
+        const [y, m, d] = dStr.split('-');
+        return new Date(y, m-1, d).toLocaleDateString('nl-NL', { weekday: 'long', day: 'numeric', month: 'long' });
+    }
+
+    window.deleteItem = async function(id, time, weight) {
+        if (confirm(`Meting van ${time} (${weight}g) verwijderen?`)) {
+            await deleteDoc(doc(db, "metingen", id));
+        }
+    };
+
     form.addEventListener('submit', async (e) => {
         e.preventDefault();
         saveBtn.disabled = true;
-        saveBtn.textContent = 'Opslaan...';
-
-        try {
-            await addDoc(metingenCollection, {
-                date: dateInput.value,
-                time: timeInput.value,
-                weight: parseFloat(weightInput.value).toFixed(2),
-                createdAt: new Date()
-            });
-
-            weightInput.value = '';
-            setDefaultDateTime();
-        } catch (error) {
-            console.error("Fout bij opslaan:", error);
-            alert("Er is iets misgegaan bij het opslaan in Firebase.");
-        } finally {
-            saveBtn.disabled = false;
-            saveBtn.textContent = 'Opslaan';
-        }
+        await addDoc(metingenCollection, {
+            date: dateInput.value,
+            time: timeInput.value,
+            weight: parseFloat(weightInput.value).toFixed(2),
+            createdAt: new Date()
+        });
+        weightInput.value = '';
+        saveBtn.disabled = false;
+        setDefaultDateTime();
     });
 
-    if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('./sw.js')
-            .then(() => console.log('Service Worker geregistreerd.'))
-            .catch((err) => console.log('Service Worker mislukt:', err));
-    }
-
     setDefaultDateTime();
-    listenToMetingen();
+    listenToData();
 </script>
-
 </body>
 </html>
