@@ -338,7 +338,7 @@
         `).join('');
     }
 
-    // --- MAAND VIEW LOGICA (Met opvallendere Google Fit Bubbles) ---
+    // --- MAAND VIEW LOGICA (Met doorklikken naar specifieke week) ---
 window.changeMonth = function(dir) { currentMonthOffset += dir; renderMonthView(); };
 
 function renderMonthView() {
@@ -365,7 +365,6 @@ function renderMonthView() {
         dayTotals.push({ day, dateStr, sum });
     }
 
-    // Bepaal de maximale dagwaarde in deze maand om de verhouding van de cirkels te schalen
     const maxDayVal = Math.max(...dayTotals.map(d => d.sum), 0.1);
 
     const gridContainer = document.getElementById('calendarCells');
@@ -383,13 +382,9 @@ function renderMonthView() {
         cell.className = 'cell';
 
         if (item.sum > 0) {
-            // Ratios vergroten: minimale grootte 14px, maximale grootte 42px (duidelijker verschil)
             const ratio = Math.min(item.sum / maxDayVal, 1);
             const sizePx = Math.round(14 + ratio * 28);
-            
-            // Hogere opacity (van 0.60 tot 1.00) voor volle, heldere kleuren
             const bgAlpha = (0.60 + ratio * 0.40).toFixed(2);
-            // Witte tekst bij donkerdere bolletjes, anders een donkerblauwe tekst
             const color = ratio > 0.4 ? '#ffffff' : '#1a365d';
 
             cell.innerHTML = `
@@ -415,7 +410,7 @@ function renderMonthView() {
 
     document.getElementById('monthTotal').textContent = `${monthTotalVal.toFixed(2)} g`;
 
-    // Render Weken onderaan
+    // Render Weken onderaan (Nu aanklikbaar!)
     const monthWeekList = document.getElementById('monthWeekList');
     monthWeekList.innerHTML = '';
 
@@ -423,8 +418,16 @@ function renderMonthView() {
     const firstDayOfWeek = currentPointer.getDay() === 0 ? 6 : currentPointer.getDay() - 1;
     currentPointer.setDate(currentPointer.getDate() - firstDayOfWeek);
 
+    // Bepaal de huidige week-maandag (vandaag) voor de afstandsberekening
+    const today = new Date();
+    const todayDayOfWeek = today.getDay() === 0 ? 6 : today.getDay() - 1;
+    const currentWeekMonday = new Date(today);
+    currentWeekMonday.setDate(today.getDate() - todayDayOfWeek);
+    currentWeekMonday.setHours(0,0,0,0);
+
     while (currentPointer <= lastDay) {
         const weekStart = new Date(currentPointer);
+        weekStart.setHours(0,0,0,0);
         const weekEnd = new Date(currentPointer);
         weekEnd.setDate(weekStart.getDate() + 6);
 
@@ -440,11 +443,33 @@ function renderMonthView() {
         const labelStart = weekStart.toLocaleDateString('nl-NL', { day: 'numeric', month: 'short' });
         const labelEnd = weekEnd.toLocaleDateString('nl-NL', { day: 'numeric', month: 'short' });
 
+        // Bereken verschil in weken t.o.v. de huidige week
+        const diffInMs = weekStart.getTime() - currentWeekMonday.getTime();
+        const targetWeekOffset = Math.round(diffInMs / (1000 * 60 * 60 * 24 * 7));
+
         const row = document.createElement('div');
         row.className = 'list-row';
+        row.style.cssText = "cursor: pointer; transition: background 0.2s;";
+        row.onclick = () => {
+            currentWeekOffset = targetWeekOffset;
+            
+            // Schakel over naar de 'Week' tab
+            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+
+            const weekBtn = Array.from(document.querySelectorAll('.tab-btn')).find(b => b.textContent.trim() === 'Week');
+            if (weekBtn) weekBtn.classList.add('active');
+            
+            document.getElementById('tab-week').classList.add('active');
+            renderWeekView();
+        };
+
         row.innerHTML = `
             <span class="list-label">${labelStart} – ${labelEnd}</span>
-            <span class="list-val">${weekSum.toFixed(2)} g</span>
+            <div style="display:flex; align-items:center; gap:8px;">
+                <span class="list-val">${weekSum.toFixed(2)} g</span>
+                <span style="color:#aaa; font-size:0.9rem;">&rsaquo;</span>
+            </div>
         `;
         monthWeekList.appendChild(row);
 
