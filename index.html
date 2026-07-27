@@ -324,48 +324,89 @@
     }
 
     // --- MAAND VIEW LOGICA ---
-    window.changeMonth = function(dir) { currentMonthOffset += dir; renderMonthView(); };
+   window.changeMonth = function(dir) { currentMonthOffset += dir; renderMonthView(); };
 
-    function renderMonthView() {
-        const now = new Date();
-        now.setMonth(now.getMonth() + currentMonthOffset);
+function renderMonthView() {
+    const now = new Date();
+    now.setMonth(now.getMonth() + currentMonthOffset);
 
-        const year = now.getFullYear();
-        const month = now.getMonth();
+    const year = now.getFullYear();
+    const month = now.getMonth();
 
-        document.getElementById('monthTitle').textContent = `${now.toLocaleDateString('nl-NL', { month: 'long', year: 'numeric' })}`;
+    document.getElementById('monthTitle').textContent = `${now.toLocaleDateString('nl-NL', { month: 'long', year: 'numeric' })}`;
 
-        const firstDay = new Date(year, month, 1);
-        const lastDay = new Date(year, month + 1, 0);
+    const firstDay = new Date(year, month, 1);
+    const lastDay = new Date(year, month + 1, 0);
 
-        let monthTotalVal = 0;
-        const gridContainer = document.getElementById('calendarCells');
-        gridContainer.innerHTML = '';
+    let monthTotalVal = 0;
+    const gridContainer = document.getElementById('calendarCells');
+    gridContainer.innerHTML = '';
 
-        // Padding dagen voor de eerste van de maand
-        let startOffset = firstDay.getDay() === 0 ? 6 : firstDay.getDay() - 1;
-        for(let i = 0; i < startOffset; i++) {
-            gridContainer.appendChild(document.createElement('div'));
-        }
-
-        for(let day = 1; day <= lastDay.getDate(); day++) {
-            const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-            const dayMetingen = allData.filter(x => x.date === dateStr);
-            const sum = dayMetingen.reduce((a, b) => a + (parseFloat(b.weight) || 0), 0);
-            monthTotalVal += sum;
-
-            const cell = document.createElement('div');
-            cell.className = 'cell';
-            
-            let bubbleClass = 'bubble empty';
-            if (sum > 0) bubbleClass = sum > 0.3 ? 'bubble high' : 'bubble active';
-
-            cell.innerHTML = `<div class="${bubbleClass}">${day}</div>`;
-            gridContainer.appendChild(cell);
-        }
-
-        document.getElementById('monthTotal').textContent = `${monthTotalVal.toFixed(2)} g`;
+    // Padding dagen voor de eerste van de maand
+    let startOffset = firstDay.getDay() === 0 ? 6 : firstDay.getDay() - 1;
+    for(let i = 0; i < startOffset; i++) {
+        gridContainer.appendChild(document.createElement('div'));
     }
+
+    // Vul de kalender-grid en houd dagwaarden bij
+    for(let day = 1; day <= lastDay.getDate(); day++) {
+        const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+        const dayMetingen = allData.filter(x => x.date === dateStr);
+        const sum = dayMetingen.reduce((a, b) => a + (parseFloat(b.weight) || 0), 0);
+        monthTotalVal += sum;
+
+        const cell = document.createElement('div');
+        cell.className = 'cell';
+        
+        let bubbleClass = 'bubble empty';
+        if (sum > 0) bubbleClass = sum > 0.3 ? 'bubble high' : 'bubble active';
+
+        cell.innerHTML = `<div class="${bubbleClass}">${day}</div>`;
+        gridContainer.appendChild(cell);
+    }
+
+    document.getElementById('monthTotal').textContent = `${monthTotalVal.toFixed(2)} g`;
+
+    // --- NU MET DE WEEKTOTALEN ONDERAAN ---
+    const monthWeekList = document.getElementById('monthWeekList');
+    monthWeekList.innerHTML = '';
+
+    // Bereken alle weken die binnen/overlappen met deze maand
+    let currentPointer = new Date(firstDay);
+    // Zorg dat we starten op de maandag van de eerste week
+    const firstDayOfWeek = currentPointer.getDay() === 0 ? 6 : currentPointer.getDay() - 1;
+    currentPointer.setDate(currentPointer.getDate() - firstDayOfWeek);
+
+    while (currentPointer <= lastDay) {
+        const weekStart = new Date(currentPointer);
+        const weekEnd = new Date(currentPointer);
+        weekEnd.setDate(weekStart.getDate() + 6);
+
+        let weekSum = 0;
+        for (let i = 0; i < 7; i++) {
+            const d = new Date(weekStart);
+            d.setDate(weekStart.getDate() + i);
+            const dateStr = d.toISOString().split('T')[0];
+            const dayMetingen = allData.filter(x => x.date === dateStr);
+            weekSum += dayMetingen.reduce((a, b) => a + (parseFloat(b.weight) || 0), 0);
+        }
+
+        // Toon week-label (bijv: "29 juni – 5 juli")
+        const labelStart = weekStart.toLocaleDateString('nl-NL', { day: 'numeric', month: 'short' });
+        const labelEnd = weekEnd.toLocaleDateString('nl-NL', { day: 'numeric', month: 'short' });
+
+        const row = document.createElement('div');
+        row.className = 'list-row';
+        row.innerHTML = `
+            <span class="list-label">${labelStart} – ${labelEnd}</span>
+            <span class="list-val">${weekSum.toFixed(2)} g</span>
+        `;
+        monthWeekList.appendChild(row);
+
+        // Ga 7 dagen vooruit naar de volgende week
+        currentPointer.setDate(currentPointer.getDate() + 7);
+    }
+}
 
     // Helpers
     function formatLongDate(dStr) {
