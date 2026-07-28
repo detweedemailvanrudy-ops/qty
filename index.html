@@ -75,7 +75,22 @@
 <body>
 
 <div class="container">
-
+<!-- INLOGSCHERM (Standaard verborgen, wordt getoond als je niet ingelogd bent) -->
+<div id="authContainer" class="card" style="display: none; margin-top: 50px;">
+    <h1>Inloggen</h1>
+    <form id="loginForm">
+        <div class="form-group">
+            <label>E-mailadres</label>
+            <input type="email" id="loginEmail" required placeholder="jouw@email.nl">
+        </div>
+        <div class="form-group">
+            <label>Wachtwoord</label>
+            <input type="password" id="loginPassword" required placeholder="••••••••">
+        </div>
+        <p id="loginError" style="color: #dc3545; font-size: 0.85rem; margin-bottom: 10px; display: none;"></p>
+        <button type="submit" class="btn-primary">Inloggen</button>
+    </form>
+</div>
     <!-- Tab Bar -->
     <div class="tab-nav">
         <button class="tab-btn active" onclick="switchTab('invoer')">Invoer</button>
@@ -156,25 +171,31 @@
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
     import { getFirestore, collection, addDoc, deleteDoc, doc, onSnapshot, query, orderBy } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+    import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, setPersistence, browserLocalPersistence } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 
     const firebaseConfig = {
-  apiKey: "AIzaSyDmlaR-Bylvk-TtEma0h3iyvt3YLwhL7Vs",
-  authDomain: "sollhelper.firebaseapp.com",
-  projectId: "sollhelper",
-  storageBucket: "sollhelper.firebasestorage.app",
-  messagingSenderId: "788682019261",
-  appId: "1:788682019261:web:402702ab5247826ea502d4"
-};
+        apiKey: "JOUW_API_KEY",
+        authDomain: "JOUW_PROJECT_ID.firebaseapp.com",
+        projectId: "JOUW_PROJECT_ID",
+        storageBucket: "JOUW_PROJECT_ID.appspot.com",
+        messagingSenderId: "JOUW_SENDER_ID",
+        appId: "JOUW_APP_ID"
+    };
 
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
+    const auth = getAuth(app);
     const metingenCollection = collection(db, "metingen");
+
+    // Zorg dat de sessie onthouden wordt op het apparaat
+    setPersistence(auth, browserLocalPersistence);
 
     // Global state
     let allData = [];
     let currentWeekOffset = 0;
     let currentMonthOffset = 0;
     let chartInstance = null;
+    let unsubscribeSnapshot = null;
 
     // DOM Elements
     const form = document.getElementById('registrationForm');
@@ -182,6 +203,44 @@
     const timeInput = document.getElementById('time');
     const weightInput = document.getElementById('weight');
     const saveBtn = document.getElementById('saveBtn');
+    
+    const authContainer = document.getElementById('authContainer');
+    const loginForm = document.getElementById('loginForm');
+    const loginEmail = document.getElementById('loginEmail');
+    const loginPassword = document.getElementById('loginPassword');
+    const loginError = document.getElementById('loginError');
+    const mainAppElements = document.querySelectorAll('.tab-nav, .tab-content');
+
+    // --- AUTHENTICATIE CHECK ---
+    onAuthStateChanged(auth, (user) => {
+        if (user) {
+            // Ingelogd: Verberg inlogscherm, toon app
+            authContainer.style.display = 'none';
+            mainAppElements.forEach(el => el.style.display = '');
+            document.getElementById('tab-invoer').classList.add('active'); // Herstel actieve tab
+            
+            listenToData();
+            setDefaultDateTime();
+        } else {
+            // Niet ingelogd: Toon inlogscherm, verberg app
+            authContainer.style.display = 'block';
+            mainAppElements.forEach(el => el.style.display = 'none');
+            if (unsubscribeSnapshot) unsubscribeSnapshot();
+        }
+    });
+
+    // Inlogformulier verwerken
+    loginForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        loginError.style.display = 'none';
+        try {
+            await signInWithEmailAndPassword(auth, loginEmail.value, loginPassword.value);
+            loginForm.reset();
+        } catch (error) {
+            loginError.textContent = "Inloggen mislukt. Controleer je gegevens.";
+            loginError.style.display = 'block';
+        }
+    });
 
     // Tab switcher
     window.switchTab = function(tabName) {
@@ -204,7 +263,7 @@
     // Live data van Firestore
     function listenToData() {
         const q = query(metingenCollection, orderBy("date", "desc"));
-        onSnapshot(q, (snapshot) => {
+        unsubscribeSnapshot = onSnapshot(q, (snapshot) => {
             allData = [];
             snapshot.docs.forEach(docSnap => {
                 allData.push({ id: docSnap.id, ...docSnap.data() });
@@ -216,7 +275,7 @@
         });
     }
 
-    // Render Invoer/Log History (Met Maand-Divider)
+    // Render Invoer/Log History
     function renderHistoryList() {
         const container = document.getElementById('historyContainer');
         container.innerHTML = '';
@@ -239,7 +298,6 @@
             const [year, month] = dateKey.split('-');
             const currentMonthKey = `${year}-${month}`;
 
-            // Als we bij een nieuwe maand aankomen, voegen we een duidelijke divider toe
             if (previousMonth && previousMonth !== currentMonthKey) {
                 const monthDivider = document.createElement('div');
                 const monthName = new Date(year, month - 1, 1).toLocaleDateString('nl-NL', { month: 'long', year: 'numeric' });
@@ -303,7 +361,6 @@
         document.getElementById('weekTitle').textContent = `${monday.getDate()}–${sunday.getDate()} ${sunday.toLocaleDateString('nl-NL', { month: 'long' })}`;
         document.getElementById('weekTotal').textContent = `${weekTotalVal.toFixed(2)} g`;
 
-        // Render Staafdiagram
         const ctx = document.getElementById('weekChart').getContext('2d');
         if (chartInstance) chartInstance.destroy();
 
@@ -328,7 +385,6 @@
             }
         });
 
-        // Render Lijst
         const listContainer = document.getElementById('weekList');
         listContainer.innerHTML = days.map(d => `
             <div class="list-row">
@@ -338,144 +394,137 @@
         `).join('');
     }
 
-    // --- MAAND VIEW LOGICA (Met doorklikken naar specifieke week) ---
-window.changeMonth = function(dir) { currentMonthOffset += dir; renderMonthView(); };
+    // --- MAAND VIEW LOGICA ---
+    window.changeMonth = function(dir) { currentMonthOffset += dir; renderMonthView(); };
 
-function renderMonthView() {
-    const now = new Date();
-    now.setMonth(now.getMonth() + currentMonthOffset);
+    function renderMonthView() {
+        const now = new Date();
+        now.setMonth(now.getMonth() + currentMonthOffset);
 
-    const year = now.getFullYear();
-    const month = now.getMonth();
+        const year = now.getFullYear();
+        const month = now.getMonth();
 
-    document.getElementById('monthTitle').textContent = `${now.toLocaleDateString('nl-NL', { month: 'long', year: 'numeric' })}`;
+        document.getElementById('monthTitle').textContent = `${now.toLocaleDateString('nl-NL', { month: 'long', year: 'numeric' })}`;
 
-    const firstDay = new Date(year, month, 1);
-    const lastDay = new Date(year, month + 1, 0);
+        const firstDay = new Date(year, month, 1);
+        const lastDay = new Date(year, month + 1, 0);
 
-    let monthTotalVal = 0;
-    const dayTotals = [];
+        let monthTotalVal = 0;
+        const dayTotals = [];
 
-    // Verzamel de totalen per dag in de maand
-    for(let day = 1; day <= lastDay.getDate(); day++) {
-        const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-        const dayMetingen = allData.filter(x => x.date === dateStr);
-        const sum = dayMetingen.reduce((a, b) => a + (parseFloat(b.weight) || 0), 0);
-        monthTotalVal += sum;
-        dayTotals.push({ day, dateStr, sum });
-    }
-
-    const maxDayVal = Math.max(...dayTotals.map(d => d.sum), 0.1);
-
-    const gridContainer = document.getElementById('calendarCells');
-    gridContainer.innerHTML = '';
-
-    // Padding dagen voor de eerste van de maand
-    let startOffset = firstDay.getDay() === 0 ? 6 : firstDay.getDay() - 1;
-    for(let i = 0; i < startOffset; i++) {
-        gridContainer.appendChild(document.createElement('div'));
-    }
-
-    // Bouw de kalender cellen
-    dayTotals.forEach(item => {
-        const cell = document.createElement('div');
-        cell.className = 'cell';
-
-        if (item.sum > 0) {
-            const ratio = Math.min(item.sum / maxDayVal, 1);
-            const sizePx = Math.round(14 + ratio * 28);
-            const bgAlpha = (0.60 + ratio * 0.40).toFixed(2);
-            const color = ratio > 0.4 ? '#ffffff' : '#1a365d';
-
-            cell.innerHTML = `
-                <div class="bubble" style="
-                    width: ${sizePx}px; 
-                    height: ${sizePx}px; 
-                    background-color: rgba(59, 113, 202, ${bgAlpha}); 
-                    color: ${color};
-                    border-radius: 50%;
-                    display: flex; align-items: center; justify-content: center;
-                    font-size: ${sizePx < 20 ? '0.7rem' : '0.85rem'}; 
-                    font-weight: 700;
-                    box-shadow: 0 1px 3px rgba(0,0,0,0.12);
-                    transition: all 0.2s ease;">
-                    ${item.day}
-                </div>`;
-        } else {
-            cell.innerHTML = `<div class="bubble empty">${item.day}</div>`;
-        }
-
-        gridContainer.appendChild(cell);
-    });
-
-    document.getElementById('monthTotal').textContent = `${monthTotalVal.toFixed(2)} g`;
-
-    // Render Weken onderaan (Nu aanklikbaar!)
-    const monthWeekList = document.getElementById('monthWeekList');
-    monthWeekList.innerHTML = '';
-
-    let currentPointer = new Date(firstDay);
-    const firstDayOfWeek = currentPointer.getDay() === 0 ? 6 : currentPointer.getDay() - 1;
-    currentPointer.setDate(currentPointer.getDate() - firstDayOfWeek);
-
-    // Bepaal de huidige week-maandag (vandaag) voor de afstandsberekening
-    const today = new Date();
-    const todayDayOfWeek = today.getDay() === 0 ? 6 : today.getDay() - 1;
-    const currentWeekMonday = new Date(today);
-    currentWeekMonday.setDate(today.getDate() - todayDayOfWeek);
-    currentWeekMonday.setHours(0,0,0,0);
-
-    while (currentPointer <= lastDay) {
-        const weekStart = new Date(currentPointer);
-        weekStart.setHours(0,0,0,0);
-        const weekEnd = new Date(currentPointer);
-        weekEnd.setDate(weekStart.getDate() + 6);
-
-        let weekSum = 0;
-        for (let i = 0; i < 7; i++) {
-            const d = new Date(weekStart);
-            d.setDate(weekStart.getDate() + i);
-            const dateStr = d.toISOString().split('T')[0];
+        for(let day = 1; day <= lastDay.getDate(); day++) {
+            const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
             const dayMetingen = allData.filter(x => x.date === dateStr);
-            weekSum += dayMetingen.reduce((a, b) => a + (parseFloat(b.weight) || 0), 0);
+            const sum = dayMetingen.reduce((a, b) => a + (parseFloat(b.weight) || 0), 0);
+            monthTotalVal += sum;
+            dayTotals.push({ day, dateStr, sum });
         }
 
-        const labelStart = weekStart.toLocaleDateString('nl-NL', { day: 'numeric', month: 'short' });
-        const labelEnd = weekEnd.toLocaleDateString('nl-NL', { day: 'numeric', month: 'short' });
+        const maxDayVal = Math.max(...dayTotals.map(d => d.sum), 0.1);
 
-        // Bereken verschil in weken t.o.v. de huidige week
-        const diffInMs = weekStart.getTime() - currentWeekMonday.getTime();
-        const targetWeekOffset = Math.round(diffInMs / (1000 * 60 * 60 * 24 * 7));
+        const gridContainer = document.getElementById('calendarCells');
+        gridContainer.innerHTML = '';
 
-        const row = document.createElement('div');
-        row.className = 'list-row';
-        row.style.cssText = "cursor: pointer; transition: background 0.2s;";
-        row.onclick = () => {
-            currentWeekOffset = targetWeekOffset;
-            
-            // Schakel over naar de 'Week' tab
-            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
-            document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+        let startOffset = firstDay.getDay() === 0 ? 6 : firstDay.getDay() - 1;
+        for(let i = 0; i < startOffset; i++) {
+            gridContainer.appendChild(document.createElement('div'));
+        }
 
-            const weekBtn = Array.from(document.querySelectorAll('.tab-btn')).find(b => b.textContent.trim() === 'Week');
-            if (weekBtn) weekBtn.classList.add('active');
-            
-            document.getElementById('tab-week').classList.add('active');
-            renderWeekView();
-        };
+        dayTotals.forEach(item => {
+            const cell = document.createElement('div');
+            cell.className = 'cell';
 
-        row.innerHTML = `
-            <span class="list-label">${labelStart} – ${labelEnd}</span>
-            <div style="display:flex; align-items:center; gap:8px;">
-                <span class="list-val">${weekSum.toFixed(2)} g</span>
-                <span style="color:#aaa; font-size:0.9rem;">&rsaquo;</span>
-            </div>
-        `;
-        monthWeekList.appendChild(row);
+            if (item.sum > 0) {
+                const ratio = Math.min(item.sum / maxDayVal, 1);
+                const sizePx = Math.round(14 + ratio * 28);
+                const bgAlpha = (0.60 + ratio * 0.40).toFixed(2);
+                const color = ratio > 0.4 ? '#ffffff' : '#1a365d';
 
-        currentPointer.setDate(currentPointer.getDate() + 7);
+                cell.innerHTML = `
+                    <div class="bubble" style="
+                        width: ${sizePx}px; 
+                        height: ${sizePx}px; 
+                        background-color: rgba(59, 113, 202, ${bgAlpha}); 
+                        color: ${color};
+                        border-radius: 50%;
+                        display: flex; align-items: center; justify-content: center;
+                        font-size: ${sizePx < 20 ? '0.7rem' : '0.85rem'}; 
+                        font-weight: 700;
+                        box-shadow: 0 1px 3px rgba(0,0,0,0.12);
+                        transition: all 0.2s ease;">
+                        ${item.day}
+                    </div>`;
+            } else {
+                cell.innerHTML = `<div class="bubble empty">${item.day}</div>`;
+            }
+
+            gridContainer.appendChild(cell);
+        });
+
+        document.getElementById('monthTotal').textContent = `${monthTotalVal.toFixed(2)} g`;
+
+        const monthWeekList = document.getElementById('monthWeekList');
+        monthWeekList.innerHTML = '';
+
+        let currentPointer = new Date(firstDay);
+        const firstDayOfWeek = currentPointer.getDay() === 0 ? 6 : currentPointer.getDay() - 1;
+        currentPointer.setDate(currentPointer.getDate() - firstDayOfWeek);
+
+        const today = new Date();
+        const todayDayOfWeek = today.getDay() === 0 ? 6 : today.getDay() - 1;
+        const currentWeekMonday = new Date(today);
+        currentWeekMonday.setDate(today.getDate() - todayDayOfWeek);
+        currentWeekMonday.setHours(0,0,0,0);
+
+        while (currentPointer <= lastDay) {
+            const weekStart = new Date(currentPointer);
+            weekStart.setHours(0,0,0,0);
+            const weekEnd = new Date(currentPointer);
+            weekEnd.setDate(weekStart.getDate() + 6);
+
+            let weekSum = 0;
+            for (let i = 0; i < 7; i++) {
+                const d = new Date(weekStart);
+                d.setDate(weekStart.getDate() + i);
+                const dateStr = d.toISOString().split('T')[0];
+                const dayMetingen = allData.filter(x => x.date === dateStr);
+                weekSum += dayMetingen.reduce((a, b) => a + (parseFloat(b.weight) || 0), 0);
+            }
+
+            const labelStart = weekStart.toLocaleDateString('nl-NL', { day: 'numeric', month: 'short' });
+            const labelEnd = weekEnd.toLocaleDateString('nl-NL', { day: 'numeric', month: 'short' });
+
+            const diffInMs = weekStart.getTime() - currentWeekMonday.getTime();
+            const targetWeekOffset = Math.round(diffInMs / (1000 * 60 * 60 * 24 * 7));
+
+            const row = document.createElement('div');
+            row.className = 'list-row';
+            row.style.cssText = "cursor: pointer; transition: background 0.2s;";
+            row.onclick = () => {
+                currentWeekOffset = targetWeekOffset;
+                
+                document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+                document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+
+                const weekBtn = Array.from(document.querySelectorAll('.tab-btn')).find(b => b.textContent.trim() === 'Week');
+                if (weekBtn) weekBtn.classList.add('active');
+                
+                document.getElementById('tab-week').classList.add('active');
+                renderWeekView();
+            };
+
+            row.innerHTML = `
+                <span class="list-label">${labelStart} – ${labelEnd}</span>
+                <div style="display:flex; align-items:center; gap:8px;">
+                    <span class="list-val">${weekSum.toFixed(2)} g</span>
+                    <span style="color:#aaa; font-size:0.9rem;">&rsaquo;</span>
+                </div>
+            `;
+            monthWeekList.appendChild(row);
+
+            currentPointer.setDate(currentPointer.getDate() + 7);
+        }
     }
-}
 
     // Helpers
     function formatLongDate(dStr) {
@@ -502,9 +551,6 @@ function renderMonthView() {
         saveBtn.disabled = false;
         setDefaultDateTime();
     });
-
-    setDefaultDateTime();
-    listenToData();
 </script>
 </body>
 </html>
