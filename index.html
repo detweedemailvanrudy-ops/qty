@@ -6,6 +6,10 @@
     <title>Meting Registratie</title>
     <link rel="icon" type="image/svg+xml" href="icon.svg">
     <link rel="manifest" href="manifest.json">
+    <!-- Google Fonts: Inter -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Short+Stack:wght@400;500;600;700&display=swap" rel="stylesheet">
     <!-- Chart.js voor de week-grafiek -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
@@ -70,7 +74,47 @@
         .day-content { display: none; background: #fff; border-top: 1px solid var(--border-color); }
         .day-group.open .day-content { display: block; }
         .log-item { padding: 10px 15px; display: flex; justify-content: space-between; border-bottom: 1px solid #eee; cursor: pointer; }
-    </style>
+        /* Insights / Inzichten Styling */
+        .filter-bar { display: flex; gap: 8px; margin-bottom: 15px; }
+        .filter-btn { flex: 1; padding: 8px 0; font-size: 0.8rem; font-weight: 600; border: 1px solid var(--border-color); background: #fff; border-radius: 6px; cursor: pointer; color: #555; transition: all 0.2s; }
+        .filter-btn.active { background: var(--primary-color); color: #fff; border-color: var(--primary-color); }
+
+        .kpi-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-bottom: 15px; }
+        .kpi-card { background: var(--card-color); padding: 15px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); text-align: center; }
+        .kpi-label { font-size: 0.75rem; color: #666; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; display: block; margin-bottom: 4px; }
+        .kpi-value { font-size: 1.2rem; font-weight: 700; color: var(--primary-color); }
+        .kpi-sub { font-size: 0.75rem; color: #888; margin-top: 2px; }
+        /* Top Header Bar */
+        .top-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background-color: var(--primary-color);
+            color: #ffffff;
+            padding: 0 16px;
+            height: 48px; /* Zelfde hoogte als de tabs */
+            border-radius: 10px 10px 0 0;
+        }
+
+        .top-header .brand-title {
+            font-size: 1.5rem;
+            font-weight: 700;
+            letter-spacing: 0.5px;
+            font-family: 'Short Stack', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        }
+
+        .top-header .header-placeholder {
+            font-size: 0.8rem;
+            opacity: 0.85;
+            font-weight: 400;
+        }
+
+        /* Aanpassing bestaande tab-nav om aan te sluiten onder de header */
+        .tab-nav {
+            border-radius: 0; 
+        }
+   </style>
+   
 </head>
 <body>
 
@@ -91,11 +135,18 @@
         <button type="submit" class="btn-primary">Inloggen</button>
     </form>
 </div>
+
+    <!-- Top Header -->
+    <div class="top-header">
+        <span class="brand-title">Qty</span>
+        <span class="header-placeholder">v1.5.0</span>
+    </div>
     <!-- Tab Bar -->
     <div class="tab-nav">
         <button class="tab-btn active" onclick="switchTab('invoer')">Invoer</button>
         <button class="tab-btn" onclick="switchTab('week')">Week</button>
         <button class="tab-btn" onclick="switchTab('maand')">Maand</button>
+        <button class="tab-btn" onclick="switchTab('inzichten')">Inzichten</button>
     </div>
 
     <!-- TAB 1: INVOER & HISTORIE -->
@@ -165,6 +216,57 @@
         </div>
     </div>
 
+    <!-- TAB 4: INZICHTEN OVERZICHT -->
+    <div id="tab-inzichten" class="tab-content">
+        <!-- Periode Filter -->
+        <div class="filter-bar">
+            <button class="filter-btn active" onclick="setInsightPeriod(30)">30 Dagen</button>
+            <button class="filter-btn" onclick="setInsightPeriod(90)">3 Maanden</button>
+            <button class="filter-btn" onclick="setInsightPeriod(365)">Dit Jaar</button>
+            <button class="filter-btn" onclick="setInsightPeriod(0)">Alles</button>
+        </div>
+
+        <!-- KPI Statistieken Grid -->
+        <div class="kpi-grid">
+            <div class="kpi-card">
+                <span class="kpi-label">Totaal Gewicht</span>
+                <div class="kpi-value" id="kpiTotalWeight">0.00 g</div>
+                <div class="kpi-sub" id="kpiTotalCount">0 metingen</div>
+            </div>
+            <div class="kpi-card">
+                <span class="kpi-label">Daggemiddelde</span>
+                <div class="kpi-value" id="kpiAvgDay">0.00 g</div>
+                <div class="kpi-sub" id="kpiAvgPerLog">0.00 g / meting</div>
+            </div>
+            <div class="kpi-card">
+                <span class="kpi-label">Hoogste Dagtotaal</span>
+                <div class="kpi-value" id="kpiMaxDay">0.00 g</div>
+                <div class="kpi-sub" id="kpiMaxDayDate">--</div>
+            </div>
+            <div class="kpi-card">
+                <span class="kpi-label">Piek Tijdstip</span>
+                <div class="kpi-value" id="kpiPeakHour">--:--</div>
+                <div class="kpi-sub">Meeste activiteit</div>
+            </div>
+        </div>
+
+        <!-- Grafiek 1: Verdeling per Uur -->
+        <div class="card">
+            <h2>Piek-uren (Verdeling per uur)</h2>
+            <div style="height: 200px; position: relative;">
+                <canvas id="hourlyChart"></canvas>
+            </div>
+        </div>
+
+        <!-- Grafiek 2: Verdeling per Dag van de Week -->
+        <div class="card">
+            <h2>Gemiddelde per Dag van de Week</h2>
+            <div style="height: 200px; position: relative;">
+                <canvas id="weekdayChart"></canvas>
+            </div>
+        </div>
+    </div>
+
 </div>
 
 <!-- Firebase SDKs & App Logica -->
@@ -195,6 +297,9 @@
     let currentMonthOffset = 0;
     let chartInstance = null;
     let unsubscribeSnapshot = null;
+    let insightPeriodDays = 30;
+    let hourlyChartInstance = null;
+    let weekdayChartInstance = null;
 
     // DOM Elements
     const form = document.getElementById('registrationForm');
@@ -251,6 +356,7 @@
 
         if(tabName === 'week') renderWeekView();
         if(tabName === 'maand') renderMonthView();
+        if(tabName === 'inzichten') renderInsightsView();
     };
 
     function setDefaultDateTime() {
@@ -271,6 +377,7 @@
             renderHistoryList();
             renderWeekView();
             renderMonthView();
+            renderInsightsView();
         });
     }
 
@@ -550,6 +657,158 @@
         saveBtn.disabled = false;
         setDefaultDateTime();
     });
+    // --- INZICHTEN VIEW LOGICA ---
+window.setInsightPeriod = function(days) {
+    insightPeriodDays = days;
+    document.querySelectorAll('.filter-btn').forEach(btn => btn.classList.remove('active'));
+    event.target.classList.add('active');
+    renderInsightsView();
+};
+
+function renderInsightsView() {
+    if (!allData.length) return;
+
+    // Filter data op basis van gekozen periode
+    let filteredData = [...allData];
+    if (insightPeriodDays > 0) {
+        const cutoffDate = new Date();
+        cutoffDate.setDate(cutoffDate.getDate() - insightPeriodDays);
+        const cutoffStr = cutoffDate.toISOString().split('T')[0];
+        filteredData = allData.filter(x => x.date >= cutoffStr);
+    }
+
+    if (filteredData.length === 0) {
+        document.getElementById('kpiTotalWeight').textContent = '0.00 g';
+        document.getElementById('kpiTotalCount').textContent = '0 metingen';
+        document.getElementById('kpiAvgDay').textContent = '0.00 g';
+        document.getElementById('kpiAvgPerLog').textContent = '0.00 g / meting';
+        document.getElementById('kpiMaxDay').textContent = '0.00 g';
+        document.getElementById('kpiMaxDayDate').textContent = '--';
+        document.getElementById('kpiPeakHour').textContent = '--:--';
+        return;
+    }
+
+    // 1. KPI BEREKENINGEN
+    const totalWeight = filteredData.reduce((sum, item) => sum + (parseFloat(item.weight) || 0), 0);
+    const totalLogs = filteredData.length;
+    const avgPerLog = totalWeight / totalLogs;
+
+    // Groepeer per unieke datum
+    const dayMap = {};
+    filteredData.forEach(item => {
+        dayMap[item.date] = (dayMap[item.date] || 0) + (parseFloat(item.weight) || 0);
+    });
+
+    const activeDaysCount = Object.keys(dayMap).length;
+    const avgPerDay = totalWeight / (activeDaysCount || 1);
+
+    // Zoek het hoogste dagtotaal
+    let maxDayVal = 0;
+    let maxDayDate = '--';
+    Object.entries(dayMap).forEach(([dateStr, val]) => {
+        if (val > maxDayVal) {
+            maxDayVal = val;
+            maxDayDate = dateStr;
+        }
+    });
+
+    // KPI DOM Updates
+    document.getElementById('kpiTotalWeight').textContent = `${totalWeight.toFixed(2)} g`;
+    document.getElementById('kpiTotalCount').textContent = `${totalLogs} metingen`;
+    document.getElementById('kpiAvgDay').textContent = `${avgPerDay.toFixed(2)} g`;
+    document.getElementById('kpiAvgPerLog').textContent = `${avgPerLog.toFixed(2)} g / meting`;
+    document.getElementById('kpiMaxDay').textContent = `${maxDayVal.toFixed(2)} g`;
+    
+    if (maxDayDate !== '--') {
+        const [y, m, d] = maxDayDate.split('-');
+        document.getElementById('kpiMaxDayDate').textContent = new Date(y, m-1, d).toLocaleDateString('nl-NL', { day: 'numeric', month: 'short' });
+    }
+
+    // 2. PIEK UUR BEREKENING (24 uur)
+    const hourlyTotals = new Array(24).fill(0);
+    filteredData.forEach(item => {
+        if (item.time) {
+            const hour = parseInt(item.time.split(':')[0], 10);
+            if (!isNaN(hour) && hour >= 0 && hour < 24) {
+                hourlyTotals[hour] += (parseFloat(item.weight) || 0);
+            }
+        }
+    });
+
+    const maxHour = hourlyTotals.indexOf(Math.max(...hourlyTotals));
+    document.getElementById('kpiPeakHour').textContent = `${String(maxHour).padStart(2, '0')}:00 - ${String(maxHour + 1).padStart(2, '0')}:00`;
+
+    // 3. DAG VAN DE WEEK BEREKENING (Ma t/m Zo)
+    const weekdayTotals = new Array(7).fill(0);
+    const weekdayCounts = new Array(7).fill(0);
+
+    Object.entries(dayMap).forEach(([dateStr, sum]) => {
+        const [y, m, d] = dateStr.split('-');
+        const dateObj = new Date(y, m-1, d);
+        let dayIdx = dateObj.getDay() === 0 ? 6 : dateObj.getDay() - 1; // 0 = Ma, 6 = Zo
+        weekdayTotals[dayIdx] += sum;
+        weekdayCounts[dayIdx] += 1;
+    });
+
+    const weekdayAverages = weekdayTotals.map((tot, idx) => {
+        const count = weekdayCounts[idx];
+        return count > 0 ? (tot / count) : 0;
+    });
+
+    // 4. CHART.JS GRAFIEKEN RENDERING
+    // Hourly Chart
+    const ctxHourly = document.getElementById('hourlyChart').getContext('2d');
+    if (hourlyChartInstance) hourlyChartInstance.destroy();
+
+    hourlyChartInstance = new Chart(ctxHourly, {
+        type: 'bar',
+        data: {
+            labels: Array.from({length: 24}, (_, i) => `${String(i).padStart(2, '0')}u`),
+            datasets: [{
+                data: hourlyTotals,
+                backgroundColor: '#3b71ca',
+                borderRadius: 4
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: {
+                y: { beginAtZero: true, grid: { color: '#eee' } },
+                x: { grid: { display: false }, ticks: { font: { size: 9 } } }
+            }
+        }
+    });
+
+    // Weekday Chart
+    const ctxWeekday = document.getElementById('weekdayChart').getContext('2d');
+    if (weekdayChartInstance) weekdayChartInstance.destroy();
+
+    weekdayChartInstance = new Chart(ctxWeekday, {
+        type: 'bar',
+        data: {
+            labels: ['Ma', 'Di', 'Wo', 'Do', 'Vr', 'Za', 'Zo'],
+            datasets: [{
+                data: weekdayAverages,
+                backgroundColor: 'rgba(59, 113, 202, 0.85)',
+                borderRadius: 6
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: {
+                y: { beginAtZero: true, grid: { color: '#eee' } },
+                x: { grid: { display: false } }
+            }
+        }
+    });
+}
 </script>
 </body>
+<!-- Version history 
+11-08-2026: v1.5.0 - Eerste versie met Firebase Auth en verbeterde UI, en maand/week/insights tabs. 
+-->
 </html>
