@@ -569,67 +569,71 @@
 
         document.getElementById('monthTotal').textContent = `${monthTotalVal.toFixed(2)} g`;
 
-        const monthWeekList = document.getElementById('monthWeekList');
-        monthWeekList.innerHTML = '';
+        // Render Weken onderaan (Nu netjes afgestemd op echte kalenderweken: Ma t/m Zo)
+    const monthWeekList = document.getElementById('monthWeekList');
+    monthWeekList.innerHTML = '';
 
-        let currentPointer = new Date(firstDay);
-        const firstDayOfWeek = currentPointer.getDay() === 0 ? 6 : currentPointer.getDay() - 1;
-        currentPointer.setDate(currentPointer.getDate() - firstDayOfWeek);
+    // Zoek de maandag van de allereerste week waar de 1e van de maand in valt
+    let weekPointer = new Date(year, month, 1);
+    const dayOfWeek = weekPointer.getDay() === 0 ? 6 : weekPointer.getDay() - 1; // 0 = Ma, 6 = Zo
+    weekPointer.setDate(weekPointer.getDate() - dayOfWeek); // Ga terug naar de maandag
+    weekPointer.setHours(0,0,0,0);
 
-        const today = new Date();
-        const todayDayOfWeek = today.getDay() === 0 ? 6 : today.getDay() - 1;
-        const currentWeekMonday = new Date(today);
-        currentWeekMonday.setDate(today.getDate() - todayDayOfWeek);
-        currentWeekMonday.setHours(0,0,0,0);
+    const today = new Date();
+    const todayDayOfWeek = today.getDay() === 0 ? 6 : today.getDay() - 1;
+    const currentWeekMonday = new Date(today);
+    currentWeekMonday.setDate(today.getDate() - todayDayOfWeek);
+    currentWeekMonday.setHours(0,0,0,0);
 
-        while (currentPointer <= lastDay) {
-            const weekStart = new Date(currentPointer);
-            weekStart.setHours(0,0,0,0);
-            const weekEnd = new Date(currentPointer);
-            weekEnd.setDate(weekStart.getDate() + 6);
+    // Blijf weken toevoegen zolang de start van de week in/voor de huidige maand valt
+    while (weekPointer <= lastDay) {
+        const weekStart = new Date(weekPointer);
+        const weekEnd = new Date(weekPointer);
+        weekEnd.setDate(weekStart.getDate() + 6);
 
-            let weekSum = 0;
-            for (let i = 0; i < 7; i++) {
-                const d = new Date(weekStart);
-                d.setDate(weekStart.getDate() + i);
-                const dateStr = d.toISOString().split('T')[0];
-                const dayMetingen = allData.filter(x => x.date === dateStr);
-                weekSum += dayMetingen.reduce((a, b) => a + (parseFloat(b.weight) || 0), 0);
-            }
-
-            const labelStart = weekStart.toLocaleDateString('nl-NL', { day: 'numeric', month: 'short' });
-            const labelEnd = weekEnd.toLocaleDateString('nl-NL', { day: 'numeric', month: 'short' });
-
-            const diffInMs = weekStart.getTime() - currentWeekMonday.getTime();
-            const targetWeekOffset = Math.round(diffInMs / (1000 * 60 * 60 * 24 * 7));
-
-            const row = document.createElement('div');
-            row.className = 'list-row';
-            row.style.cssText = "cursor: pointer; transition: background 0.2s;";
-            row.onclick = () => {
-                currentWeekOffset = targetWeekOffset;
-                
-                document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
-                document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
-
-                const weekBtn = Array.from(document.querySelectorAll('.tab-btn')).find(b => b.textContent.trim() === 'Week');
-                if (weekBtn) weekBtn.classList.add('active');
-                
-                document.getElementById('tab-week').classList.add('active');
-                renderWeekView();
-            };
-
-            row.innerHTML = `
-                <span class="list-label">${labelStart} – ${labelEnd}</span>
-                <div style="display:flex; align-items:center; gap:8px;">
-                    <span class="list-val">${weekSum.toFixed(2)} g</span>
-                    <span style="color:#aaa; font-size:0.9rem;">&rsaquo;</span>
-                </div>
-            `;
-            monthWeekList.appendChild(row);
-
-            currentPointer.setDate(currentPointer.getDate() + 7);
+        let weekSum = 0;
+        for (let i = 0; i < 7; i++) {
+            const d = new Date(weekStart);
+            d.setDate(weekStart.getDate() + i);
+            const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+            const dayMetingen = allData.filter(x => x.date === dateStr);
+            weekSum += dayMetingen.reduce((a, b) => a + (parseFloat(b.weight) || 0), 0);
         }
+
+        const labelStart = weekStart.toLocaleDateString('nl-NL', { day: 'numeric', month: 'short' });
+        const labelEnd = weekEnd.toLocaleDateString('nl-NL', { day: 'numeric', month: 'short' });
+
+        const diffInMs = weekStart.getTime() - currentWeekMonday.getTime();
+        const targetWeekOffset = Math.round(diffInMs / (1000 * 60 * 60 * 24 * 7));
+
+        const row = document.createElement('div');
+        row.className = 'list-row';
+        row.style.cssText = "cursor: pointer; transition: background 0.2s;";
+        row.onclick = () => {
+            currentWeekOffset = targetWeekOffset;
+            
+            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+
+            const weekBtn = Array.from(document.querySelectorAll('.tab-btn')).find(b => b.textContent.trim() === 'Week');
+            if (weekBtn) weekBtn.classList.add('active');
+            
+            document.getElementById('tab-week').classList.add('active');
+            renderWeekView();
+        };
+
+        row.innerHTML = `
+            <span class="list-label">${labelStart} – ${labelEnd}</span>
+            <div style="display:flex; align-items:center; gap:8px;">
+                <span class="list-val">${weekSum.toFixed(2)} g</span>
+                <span style="color:#aaa; font-size:0.9rem;">&rsaquo;</span>
+            </div>
+        `;
+        monthWeekList.appendChild(row);
+
+        // Ga naar de volgende maandag
+        weekPointer.setDate(weekPointer.getDate() + 7);
+    }
     }
 
     // Helpers
