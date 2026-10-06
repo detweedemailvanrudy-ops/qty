@@ -113,6 +113,45 @@
         .tab-nav {
             border-radius: 0; 
         }
+        /* View Toggle Control */
+.view-toggle-container {
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 12px;
+}
+
+.view-toggle-label {
+    font-size: 0.8rem;
+    color: #666;
+    font-weight: 600;
+}
+
+.segmented-control {
+    display: flex;
+    background-color: #eee;
+    border-radius: 8px;
+    padding: 2px;
+}
+
+.segmented-btn {
+    border: none;
+    background: transparent;
+    padding: 4px 10px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: #555;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.segmented-btn.active {
+    background-color: #ffffff;
+    color: var(--primary-color);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.12);
+}
    </style>
    
 </head>
@@ -139,7 +178,7 @@
     <!-- Top Header -->
     <div class="top-header">
         <span class="brand-title">Qty</span>
-        <span class="header-placeholder">v1.5.0</span>
+        <span class="header-placeholder">v1.5.1</span>
     </div>
     <!-- Tab Bar -->
     <div class="tab-nav">
@@ -191,31 +230,39 @@
     </div>
 
     <!-- TAB 3: MAAND OVERZICHT -->
-    <div id="tab-maand" class="tab-content">
-        <div class="card">
-            <div class="period-header">
-                <button class="nav-arrow" onclick="changeMonth(-1)">&lt;</button>
-                <div class="period-title">
-                    <h3 id="monthTitle">--</h3>
-                    <span id="monthTotal">0.00 g</span>
-                </div>
-                <button class="nav-arrow" onclick="changeMonth(1)">&gt;</button>
+<!-- TAB 3: MAAND OVERZICHT -->
+<div id="tab-maand" class="tab-content">
+    <div class="card">
+        <!-- Header met Navigatie (< Maand Jaar > + Totaal) -->
+        <div class="period-header">
+            <button class="nav-arrow" onclick="changeMonth(-1)">&lt;</button>
+            <div class="period-title">
+                <h3 id="monthTitle">--</h3>
+                <span id="monthTotal">0.00 g</span>
             </div>
-
-            <!-- Kalender Grid -->
-            <div class="calendar-grid">
-                <div class="day-name">ma</div><div class="day-name">di</div><div class="day-name">wo</div>
-                <div class="day-name">do</div><div class="day-name">vr</div><div class="day-name">za</div><div class="day-name">zo</div>
-            </div>
-            <div id="calendarCells" class="calendar-grid"></div>
+            <button class="nav-arrow" onclick="changeMonth(1)">&gt;</button>
         </div>
 
-        <div class="card">
-            <h2>Weken deze maand</h2>
-            <div id="monthWeekList" class="data-list"></div>
+        <!-- Toggle Switch (Bolletjes vs Grafiek) -->
+        <div style="display: flex; justify-content: flex-end; margin-bottom: 12px;">
+            <div class="segmented-control">
+                <button id="btnViewBubbles" class="segmented-btn active" onclick="setMonthViewMode('bubbles')">Bolletjes</button>
+                <button id="btnViewChart" class="segmented-btn" onclick="setMonthViewMode('chart')">Grafiek</button>
+            </div>
+        </div>
+
+        <!-- Container voor Bolletjes of Grafiek -->
+        <div id="monthViewContainer" style="min-height: 220px; position: relative;">
+            <!-- Wordt dynamisch gevuld via JS -->
         </div>
     </div>
 
+    <!-- Weken van de maand -->
+    <div class="card">
+        <h2>Weken deze maand</h2>
+        <div id="monthWeekList" class="data-list"></div>
+    </div>
+</div>
     <!-- TAB 4: INZICHTEN OVERZICHT -->
     <div id="tab-inzichten" class="tab-content">
         <!-- Periode Filter -->
@@ -272,19 +319,25 @@
 <!-- Firebase SDKs & App Logica -->
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-    import { getFirestore, collection, addDoc, deleteDoc, doc, onSnapshot, query, orderBy } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+    import { initializeFirestore, persistentLocalCache, collection, addDoc, deleteDoc, doc, onSnapshot, query, orderBy } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
     import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, setPersistence, browserLocalPersistence } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 
-   const firebaseConfig = {
-  apiKey: "AIzaSyDmlaR-Bylvk-TtEma0h3iyvt3YLwhL7Vs",
-  authDomain: "sollhelper.firebaseapp.com",
-  projectId: "sollhelper",
-  storageBucket: "sollhelper.firebasestorage.app",
-  messagingSenderId: "788682019261",
-  appId: "1:788682019261:web:402702ab5247826ea502d4"
-};
+    const firebaseConfig = {
+        apiKey: "AIzaSyDmlaR-Bylvk-TtEma0h3iyvt3YLwhL7Vs",
+        authDomain: "sollhelper.firebaseapp.com",
+        projectId: "sollhelper",
+        storageBucket: "sollhelper.firebasestorage.app",
+        messagingSenderId: "788682019261",
+        appId: "1:788682019261:web:402702ab5247826ea502d4"
+    };
+
     const app = initializeApp(firebaseConfig);
-    const db = getFirestore(app);
+    
+    // Initializeer Firestore met de nieuwste persistent local cache
+    const db = initializeFirestore(app, {
+        localCache: persistentLocalCache()
+    });
+
     const auth = getAuth(app);
     const metingenCollection = collection(db, "metingen");
 
@@ -300,6 +353,8 @@
     let insightPeriodDays = 30;
     let hourlyChartInstance = null;
     let weekdayChartInstance = null;
+    let monthViewMode = 'bubbles'; // 'bubbles' of 'chart'
+    let monthChartInstance = null;
 
     // DOM Elements
     const form = document.getElementById('registrationForm');
@@ -500,83 +555,133 @@
         `).join('');
     }
 
-    // --- MAAND VIEW LOGICA ---
-    window.changeMonth = function(dir) { currentMonthOffset += dir; renderMonthView(); };
+   // --- MAAND VIEW LOGICA ---
 
-    function renderMonthView() {
-        const now = new Date();
-        now.setMonth(now.getMonth() + currentMonthOffset);
+// Navigatieknop afhandeling
+window.changeMonth = function(dir) {
+    currentMonthOffset += dir;
+    renderMonthView();
+};
 
-        const year = now.getFullYear();
-        const month = now.getMonth();
+window.setMonthViewMode = function(mode) {
+    monthViewMode = mode;
+    const btnBubbles = document.getElementById('btnViewBubbles');
+    const btnChart = document.getElementById('btnViewChart');
+    if (btnBubbles) btnBubbles.classList.toggle('active', mode === 'bubbles');
+    if (btnChart) btnChart.classList.toggle('active', mode === 'chart');
+    renderMonthView();
+};
 
-        document.getElementById('monthTitle').textContent = `${now.toLocaleDateString('nl-NL', { month: 'long', year: 'numeric' })}`;
+function renderMonthView() {
+    // 1. Titel en datum berekeningen met currentMonthOffset
+    const now = new Date();
+    now.setMonth(now.getMonth() + currentMonthOffset);
 
-        const firstDay = new Date(year, month, 1);
-        const lastDay = new Date(year, month + 1, 0);
+    const year = now.getFullYear();
+    const month = now.getMonth();
+    
+    const monthNames = ["Januari", "Februari", "Maart", "April", "Mei", "Juni", "Juli", "Augustus", "September", "Oktober", "November", "December"];
+    const monthTitleEl = document.getElementById('monthTitle');
+    if (monthTitleEl) {
+        monthTitleEl.textContent = `${monthNames[month]} ${year}`;
+    }
 
-        let monthTotalVal = 0;
-        const dayTotals = [];
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const lastDay = new Date(year, month + 1, 0);
+    const monthContainer = document.getElementById('monthViewContainer');
+    if (monthContainer) monthContainer.innerHTML = '';
 
-        for(let day = 1; day <= lastDay.getDate(); day++) {
-            const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-            const dayMetingen = allData.filter(x => x.date === dateStr);
-            const sum = dayMetingen.reduce((a, b) => a + (parseFloat(b.weight) || 0), 0);
-            monthTotalVal += sum;
-            dayTotals.push({ day, dateStr, sum });
-        }
+    // Data per dag verzamelen & Maandtotaal berekenen
+    const dailyTotals = [];
+    let maxWeight = 0;
+    let monthTotalVal = 0;
 
-        const maxDayVal = Math.max(...dayTotals.map(d => d.sum), 0.1);
+    for (let day = 1; day <= daysInMonth; day++) {
+        const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+        const dayMetingen = allData.filter(x => x.date === dateStr);
+        const totalWeight = dayMetingen.reduce((sum, item) => sum + (parseFloat(item.weight) || 0), 0);
+        
+        dailyTotals.push({ day, weight: totalWeight });
+        monthTotalVal += totalWeight;
+        if (totalWeight > maxWeight) maxWeight = totalWeight;
+    }
 
-        const gridContainer = document.getElementById('calendarCells');
-        gridContainer.innerHTML = '';
+    // Update het maandtotaal element
+    const monthTotalEl = document.getElementById('monthTotal');
+    if (monthTotalEl) {
+        monthTotalEl.textContent = `${monthTotalVal.toFixed(2)} g`;
+    }
 
-        let startOffset = firstDay.getDay() === 0 ? 6 : firstDay.getDay() - 1;
-        for(let i = 0; i < startOffset; i++) {
-            gridContainer.appendChild(document.createElement('div'));
-        }
+    // 2. RENDERING OP BASIS VAN GESELECTEERDE MODUS (Bolletjes of Grafiek)
+    if (monthViewMode === 'bubbles') {
+        // --- BOLLETJES WEERGAVE (Google Fit Stijl) ---
+        const grid = document.createElement('div');
+        grid.style.cssText = "display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px; padding: 10px 0;";
 
-        dayTotals.forEach(item => {
-            const cell = document.createElement('div');
-            cell.className = 'cell';
+        dailyTotals.forEach(({ day, weight }) => {
+            const dayCell = document.createElement('div');
+            dayCell.style.cssText = "display: flex; flex-direction: column; align-items: center; justify-content: center; height: 45px;";
 
-            if (item.sum > 0) {
-                const ratio = Math.min(item.sum / maxDayVal, 1);
-                const sizePx = Math.round(14 + ratio * 28);
-                const bgAlpha = (0.60 + ratio * 0.40).toFixed(2);
-                const color = ratio > 0.4 ? '#ffffff' : '#1a365d';
+            let circleSize = 8;
+            let circleColor = "#e0e0e0";
 
-                cell.innerHTML = `
-                    <div class="bubble" style="
-                        width: ${sizePx}px; 
-                        height: ${sizePx}px; 
-                        background-color: rgba(59, 113, 202, ${bgAlpha}); 
-                        color: ${color};
-                        border-radius: 50%;
-                        display: flex; align-items: center; justify-content: center;
-                        font-size: ${sizePx < 20 ? '0.7rem' : '0.85rem'}; 
-                        font-weight: 700;
-                        box-shadow: 0 1px 3px rgba(0,0,0,0.12);
-                        transition: all 0.2s ease;">
-                        ${item.day}
-                    </div>`;
-            } else {
-                cell.innerHTML = `<div class="bubble empty">${item.day}</div>`;
+            if (weight > 0) {
+                const ratio = maxWeight > 0 ? (weight / maxWeight) : 0;
+                circleSize = 12 + (ratio * 20); // Tussen 12px en 32px
+                circleColor = "var(--primary-color)";
             }
 
-            gridContainer.appendChild(cell);
+            dayCell.innerHTML = `
+                <div style="height: 32px; display: flex; align-items: center; justify-content: center;">
+                    <div style="width: ${circleSize}px; height: ${circleSize}px; background-color: ${circleColor}; border-radius: 50%; transition: all 0.3s ease;" title="Dag ${day}: ${weight.toFixed(2)}g"></div>
+                </div>
+                <span style="font-size: 0.7rem; color: #777; font-weight: 600;">${day}</span>
+            `;
+            grid.appendChild(dayCell);
         });
 
-        document.getElementById('monthTotal').textContent = `${monthTotalVal.toFixed(2)} g`;
+        if (monthContainer) monthContainer.appendChild(grid);
 
-        // Render Weken onderaan (Nu netjes afgestemd op echte kalenderweken: Ma t/m Zo)
+    } else {
+        // --- STAAFDIAGRAM WEERGAVE (Chart.js) ---
+        const canvas = document.createElement('canvas');
+        canvas.id = 'monthBarChart';
+        if (monthContainer) monthContainer.appendChild(canvas);
+
+        if (monthChartInstance) monthChartInstance.destroy();
+
+        const ctx = canvas.getContext('2d');
+        monthChartInstance = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: dailyTotals.map(d => d.day),
+                datasets: [{
+                    data: dailyTotals.map(d => d.weight),
+                    backgroundColor: 'rgba(59, 113, 202, 0.85)',
+                    borderRadius: 3
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: {
+                    y: { beginAtZero: true, grid: { color: '#eee' } },
+                    x: { grid: { display: false }, ticks: { font: { size: 9 } } }
+                }
+            }
+        });
+    }
+
+    // 3. RENDER WEKEN ONDERAAN (Kalenderweken: Ma t/m Zo)
     const monthWeekList = document.getElementById('monthWeekList');
+    if (!monthWeekList) return;
     monthWeekList.innerHTML = '';
 
     // Zoek de maandag van de allereerste week waar de 1e van de maand in valt
     let weekPointer = new Date(year, month, 1);
     const dayOfWeek = weekPointer.getDay() === 0 ? 6 : weekPointer.getDay() - 1; // 0 = Ma, 6 = Zo
-    weekPointer.setDate(weekPointer.getDate() - dayOfWeek); // Ga terug naar de maandag
+    weekPointer.setDate(weekPointer.getDate() - dayOfWeek); // Ga terug naar maandag
     weekPointer.setHours(0,0,0,0);
 
     const today = new Date();
@@ -634,33 +739,33 @@
         // Ga naar de volgende maandag
         weekPointer.setDate(weekPointer.getDate() + 7);
     }
+}
+
+// Helpers
+function formatLongDate(dStr) {
+    const [y, m, d] = dStr.split('-');
+    return new Date(y, m-1, d).toLocaleDateString('nl-NL', { weekday: 'long', day: 'numeric', month: 'long' });
+}
+
+window.deleteItem = async function(id, time, weight) {
+    if (confirm(`Meting van ${time} (${weight}g) verwijderen?`)) {
+        await deleteDoc(doc(db, "metingen", id));
     }
+};
 
-    // Helpers
-    function formatLongDate(dStr) {
-        const [y, m, d] = dStr.split('-');
-        return new Date(y, m-1, d).toLocaleDateString('nl-NL', { weekday: 'long', day: 'numeric', month: 'long' });
-    }
-
-    window.deleteItem = async function(id, time, weight) {
-        if (confirm(`Meting van ${time} (${weight}g) verwijderen?`)) {
-            await deleteDoc(doc(db, "metingen", id));
-        }
-    };
-
-    form.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        saveBtn.disabled = true;
-        await addDoc(metingenCollection, {
-            date: dateInput.value,
-            time: timeInput.value,
-            weight: parseFloat(weightInput.value).toFixed(2),
-            createdAt: new Date()
-        });
-        weightInput.value = '';
-        saveBtn.disabled = false;
-        setDefaultDateTime();
+form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    saveBtn.disabled = true;
+    await addDoc(metingenCollection, {
+        date: dateInput.value,
+        time: timeInput.value,
+        weight: parseFloat(weightInput.value).toFixed(2),
+        createdAt: new Date()
     });
+    weightInput.value = '';
+    saveBtn.disabled = false;
+    setDefaultDateTime();
+});
     // --- INZICHTEN VIEW LOGICA ---
 window.setInsightPeriod = function(days) {
     insightPeriodDays = days;
@@ -814,5 +919,6 @@ function renderInsightsView() {
 </body>
 <!-- Version history 
 11-08-2026: v1.5.0 - Eerste versie met Firebase Auth en verbeterde UI, en maand/week/insights tabs. 
+06-10-2026: v1.5.1 - Problemen met traag laden van data opgelost, en grafieken geoptimaliseerd.
 -->
 </html>
