@@ -273,7 +273,7 @@
             <button class="filter-btn" onclick="setInsightPeriod(0)">Alles</button>
         </div>
 
-        <!-- KPI Statistieken Grid -->
+        <!-- KPI Statistieken Grid (Uitgebreid naar 6 tegels voor frequentie en dagdelen) -->
         <div class="kpi-grid">
             <div class="kpi-card">
                 <span class="kpi-label">Totaal Gewicht</span>
@@ -286,6 +286,16 @@
                 <div class="kpi-sub" id="kpiAvgPerLog">0.00 g / meting</div>
             </div>
             <div class="kpi-card">
+                <span class="kpi-label">Meetfrequentie</span>
+                <div class="kpi-value" id="kpiLogsPerDay">0.0</div>
+                <div class="kpi-sub">Metingen per actieve dag</div>
+            </div>
+            <div class="kpi-card">
+                <span class="kpi-label">Piek Dagdeel</span>
+                <div class="kpi-value" id="kpiPeakPeriod">--</div>
+                <div class="kpi-sub" id="kpiPeakPeriodSub">Meeste volume</div>
+            </div>
+            <div class="kpi-card">
                 <span class="kpi-label">Hoogste Dagtotaal</span>
                 <div class="kpi-value" id="kpiMaxDay">0.00 g</div>
                 <div class="kpi-sub" id="kpiMaxDayDate">--</div>
@@ -293,7 +303,7 @@
             <div class="kpi-card">
                 <span class="kpi-label">Piek Tijdstip</span>
                 <div class="kpi-value" id="kpiPeakHour">--:--</div>
-                <div class="kpi-sub">Meeste activiteit</div>
+                <div class="kpi-sub">Drukste uur</div>
             </div>
         </div>
 
@@ -305,9 +315,9 @@
             </div>
         </div>
 
-        <!-- Grafiek 2: Verdeling per Dag van de Week -->
+        <!-- Grafiek 2: Gemiddeld aantal metingen per Dag van de Week -->
         <div class="card">
-            <h2>Gemiddelde per Dag van de Week</h2>
+            <h2>Gemiddeld aantal metingen per Dag van de Week</h2>
             <div style="height: 200px; position: relative;">
                 <canvas id="weekdayChart"></canvas>
             </div>
@@ -767,154 +777,214 @@ form.addEventListener('submit', async (e) => {
     setDefaultDateTime();
 });
     // --- INZICHTEN VIEW LOGICA ---
-window.setInsightPeriod = function(days) {
-    insightPeriodDays = days;
-    document.querySelectorAll('.filter-btn').forEach(btn => btn.classList.remove('active'));
-    event.target.classList.add('active');
-    renderInsightsView();
-};
+    window.setInsightPeriod = function(days) {
+        insightPeriodDays = days;
+        document.querySelectorAll('.filter-btn').forEach(btn => btn.classList.remove('active'));
+        event.target.classList.add('active');
+        renderInsightsView();
+    };
 
-function renderInsightsView() {
-    if (!allData.length) return;
+    function renderInsightsView() {
+        if (!allData.length) return;
 
-    // Filter data op basis van gekozen periode
-    let filteredData = [...allData];
-    if (insightPeriodDays > 0) {
-        const cutoffDate = new Date();
-        cutoffDate.setDate(cutoffDate.getDate() - insightPeriodDays);
-        const cutoffStr = cutoffDate.toISOString().split('T')[0];
-        filteredData = allData.filter(x => x.date >= cutoffStr);
-    }
-
-    if (filteredData.length === 0) {
-        document.getElementById('kpiTotalWeight').textContent = '0.00 g';
-        document.getElementById('kpiTotalCount').textContent = '0 metingen';
-        document.getElementById('kpiAvgDay').textContent = '0.00 g';
-        document.getElementById('kpiAvgPerLog').textContent = '0.00 g / meting';
-        document.getElementById('kpiMaxDay').textContent = '0.00 g';
-        document.getElementById('kpiMaxDayDate').textContent = '--';
-        document.getElementById('kpiPeakHour').textContent = '--:--';
-        return;
-    }
-
-    // 1. KPI BEREKENINGEN
-    const totalWeight = filteredData.reduce((sum, item) => sum + (parseFloat(item.weight) || 0), 0);
-    const totalLogs = filteredData.length;
-    const avgPerLog = totalWeight / totalLogs;
-
-    // Groepeer per unieke datum
-    const dayMap = {};
-    filteredData.forEach(item => {
-        dayMap[item.date] = (dayMap[item.date] || 0) + (parseFloat(item.weight) || 0);
-    });
-
-    const activeDaysCount = Object.keys(dayMap).length;
-    const avgPerDay = totalWeight / (activeDaysCount || 1);
-
-    // Zoek het hoogste dagtotaal
-    let maxDayVal = 0;
-    let maxDayDate = '--';
-    Object.entries(dayMap).forEach(([dateStr, val]) => {
-        if (val > maxDayVal) {
-            maxDayVal = val;
-            maxDayDate = dateStr;
+        // Filter data op basis van gekozen periode
+        let filteredData = [...allData];
+        if (insightPeriodDays > 0) {
+            const cutoffDate = new Date();
+            cutoffDate.setDate(cutoffDate.getDate() - insightPeriodDays);
+            const cutoffStr = cutoffDate.toISOString().split('T')[0];
+            filteredData = allData.filter(x => x.date >= cutoffStr);
         }
-    });
 
-    // KPI DOM Updates
-    document.getElementById('kpiTotalWeight').textContent = `${totalWeight.toFixed(2)} g`;
-    document.getElementById('kpiTotalCount').textContent = `${totalLogs} metingen`;
-    document.getElementById('kpiAvgDay').textContent = `${avgPerDay.toFixed(2)} g`;
-    document.getElementById('kpiAvgPerLog').textContent = `${avgPerLog.toFixed(2)} g / meting`;
-    document.getElementById('kpiMaxDay').textContent = `${maxDayVal.toFixed(2)} g`;
-    
-    if (maxDayDate !== '--') {
-        const [y, m, d] = maxDayDate.split('-');
-        document.getElementById('kpiMaxDayDate').textContent = new Date(y, m-1, d).toLocaleDateString('nl-NL', { day: 'numeric', month: 'short' });
-    }
+        if (filteredData.length === 0) {
+            document.getElementById('kpiTotalWeight').textContent = '0.00 g';
+            document.getElementById('kpiTotalCount').textContent = '0 metingen';
+            document.getElementById('kpiAvgDay').textContent = '0.00 g';
+            document.getElementById('kpiAvgPerLog').textContent = '0.00 g / meting';
+            document.getElementById('kpiLogsPerDay').textContent = '0.0';
+            document.getElementById('kpiPeakPeriod').textContent = '--';
+            document.getElementById('kpiPeakPeriodSub').textContent = '0%';
+            document.getElementById('kpiMaxDay').textContent = '0.00 g';
+            document.getElementById('kpiMaxDayDate').textContent = '--';
+            document.getElementById('kpiPeakHour').textContent = '--:--';
+            return;
+        }
 
-    // 2. PIEK UUR BEREKENING (24 uur)
-    const hourlyTotals = new Array(24).fill(0);
-    filteredData.forEach(item => {
-        if (item.time) {
-            const hour = parseInt(item.time.split(':')[0], 10);
-            if (!isNaN(hour) && hour >= 0 && hour < 24) {
-                hourlyTotals[hour] += (parseFloat(item.weight) || 0);
+        // 1. KPI BEREKENINGEN
+        const totalWeight = filteredData.reduce((sum, item) => sum + (parseFloat(item.weight) || 0), 0);
+        const totalLogs = filteredData.length;
+        const avgPerLog = totalWeight / totalLogs;
+
+        // Groepeer per unieke datum
+        const dayMap = {};
+        filteredData.forEach(item => {
+            dayMap[item.date] = (dayMap[item.date] || 0) + (parseFloat(item.weight) || 0);
+        });
+
+        const activeDaysCount = Object.keys(dayMap).length;
+        const avgPerDay = totalWeight / (activeDaysCount || 1);
+        
+        // Frequentie: gemiddeld aantal metingen per actieve dag
+        const logsPerDay = totalLogs / (activeDaysCount || 1);
+
+        // Zoek het hoogste dagtotaal
+        let maxDayVal = 0;
+        let maxDayDate = '--';
+        Object.entries(dayMap).forEach(([dateStr, val]) => {
+            if (val > maxDayVal) {
+                maxDayVal = val;
+                maxDayDate = dateStr;
             }
-        }
-    });
+        });
 
-    const maxHour = hourlyTotals.indexOf(Math.max(...hourlyTotals));
-    document.getElementById('kpiPeakHour').textContent = `${String(maxHour).padStart(2, '0')}:00 - ${String(maxHour + 1).padStart(2, '0')}:00`;
-
-    // 3. DAG VAN DE WEEK BEREKENING (Ma t/m Zo)
-    const weekdayTotals = new Array(7).fill(0);
-    const weekdayCounts = new Array(7).fill(0);
-
-    Object.entries(dayMap).forEach(([dateStr, sum]) => {
-        const [y, m, d] = dateStr.split('-');
-        const dateObj = new Date(y, m-1, d);
-        let dayIdx = dateObj.getDay() === 0 ? 6 : dateObj.getDay() - 1; // 0 = Ma, 6 = Zo
-        weekdayTotals[dayIdx] += sum;
-        weekdayCounts[dayIdx] += 1;
-    });
-
-    const weekdayAverages = weekdayTotals.map((tot, idx) => {
-        const count = weekdayCounts[idx];
-        return count > 0 ? (tot / count) : 0;
-    });
-
-    // 4. CHART.JS GRAFIEKEN RENDERING
-    // Hourly Chart
-    const ctxHourly = document.getElementById('hourlyChart').getContext('2d');
-    if (hourlyChartInstance) hourlyChartInstance.destroy();
-
-    hourlyChartInstance = new Chart(ctxHourly, {
-        type: 'bar',
-        data: {
-            labels: Array.from({length: 24}, (_, i) => `${String(i).padStart(2, '0')}u`),
-            datasets: [{
-                data: hourlyTotals,
-                backgroundColor: '#3b71ca',
-                borderRadius: 4
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: { legend: { display: false } },
-            scales: {
-                y: { beginAtZero: true, grid: { color: '#eee' } },
-                x: { grid: { display: false }, ticks: { font: { size: 9 } } }
+        // 2. DAGDELEN BEREKENING (Ochtend, Middag, Avond/Nacht)
+        // Ochtend: 06:00 - 12:00 | Middag: 12:00 - 18:00 | Avond/Nacht: 18:00 - 06:00
+        let periods = { Ochtend: 0, Middag: 0, 'Avond/Nacht': 0 };
+        filteredData.forEach(item => {
+            if (item.time) {
+                const hour = parseInt(item.time.split(':')[0], 10);
+                const w = parseFloat(item.weight) || 0;
+                if (!isNaN(hour)) {
+                    if (hour >= 6 && hour < 12) periods.Ochtend += w;
+                    else if (hour >= 12 && hour < 18) periods.Middag += w;
+                    else periods['Avond/Nacht'] += w;
+                }
             }
-        }
-    });
+        });
 
-    // Weekday Chart
-    const ctxWeekday = document.getElementById('weekdayChart').getContext('2d');
-    if (weekdayChartInstance) weekdayChartInstance.destroy();
-
-    weekdayChartInstance = new Chart(ctxWeekday, {
-        type: 'bar',
-        data: {
-            labels: ['Ma', 'Di', 'Wo', 'Do', 'Vr', 'Za', 'Zo'],
-            datasets: [{
-                data: weekdayAverages,
-                backgroundColor: 'rgba(59, 113, 202, 0.85)',
-                borderRadius: 6
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: { legend: { display: false } },
-            scales: {
-                y: { beginAtZero: true, grid: { color: '#eee' } },
-                x: { grid: { display: false } }
+        // Bepaal winnend dagdeel
+        let peakPeriodName = '--';
+        let peakPeriodWeight = 0;
+        Object.entries(periods).forEach(([pName, pWeight]) => {
+            if (pWeight > peakPeriodWeight) {
+                peakPeriodWeight = pWeight;
+                peakPeriodName = pName;
             }
+        });
+        const peakPeriodPercentage = totalWeight > 0 ? Math.round((peakPeriodWeight / totalWeight) * 100) : 0;
+
+        // KPI DOM Updates
+        document.getElementById('kpiTotalWeight').textContent = `${totalWeight.toFixed(2)} g`;
+        document.getElementById('kpiTotalCount').textContent = `${totalLogs} metingen`;
+        document.getElementById('kpiAvgDay').textContent = `${avgPerDay.toFixed(2)} g`;
+        document.getElementById('kpiAvgPerLog').textContent = `${avgPerLog.toFixed(2)} g / meting`;
+        document.getElementById('kpiLogsPerDay').textContent = logsPerDay.toFixed(1);
+        document.getElementById('kpiPeakPeriod').textContent = peakPeriodName;
+        document.getElementById('kpiPeakPeriodSub').textContent = `${peakPeriodPercentage}% van totaal`;
+        document.getElementById('kpiMaxDay').textContent = `${maxDayVal.toFixed(2)} g`;
+        
+        if (maxDayDate !== '--') {
+            const [y, m, d] = maxDayDate.split('-');
+            document.getElementById('kpiMaxDayDate').textContent = new Date(y, m-1, d).toLocaleDateString('nl-NL', { day: 'numeric', month: 'short' });
         }
-    });
-}
+
+        // 3. PIEK UUR BEREKENING (24 uur)
+        const hourlyTotals = new Array(24).fill(0);
+        filteredData.forEach(item => {
+            if (item.time) {
+                const hour = parseInt(item.time.split(':')[0], 10);
+                if (!isNaN(hour) && hour >= 0 && hour < 24) {
+                    hourlyTotals[hour] += (parseFloat(item.weight) || 0);
+                }
+            }
+        });
+
+        const maxHour = hourlyTotals.indexOf(Math.max(...hourlyTotals));
+        document.getElementById('kpiPeakHour').textContent = `${String(maxHour).padStart(2, '0')}:00 - ${String(maxHour + 1).padStart(2, '0')}:00`;
+
+        // 4. GEMIDDELD AANTAL METINGEN PER DAG VAN DE WEEK (Ma t/m Zo)
+        // Bepaal de start- en einddatum van de geselecteerde periode
+        let startDate = new Date();
+        if (insightPeriodDays > 0) {
+            startDate.setDate(startDate.getDate() - insightPeriodDays);
+        } else if (allData.length > 0) {
+            const allDates = allData.map(x => x.date).sort();
+            startDate = new Date(allDates[0]);
+        }
+        startDate.setHours(0, 0, 0, 0);
+
+        let endDate = new Date(); // Vandaag
+        endDate.setHours(0, 0, 0, 0);
+
+        // Tel hoe vaak elke weekdag (0=Ma, 6=Zo) daadwerkelijk voorkomt in deze periode
+        const weekdayOccurrences = new Array(7).fill(0);
+        let currDate = new Date(startDate);
+        while (currDate <= endDate) {
+            let dayIdx = currDate.getDay() === 0 ? 6 : currDate.getDay() - 1;
+            weekdayOccurrences[dayIdx]++;
+            currDate.setDate(currDate.getDate() + 1);
+        }
+
+        // Tel het aantal metingen per weekdag in de gefilterde data
+        const weekdayLogCounts = new Array(7).fill(0);
+        filteredData.forEach(item => {
+            if (item.date) {
+                const [y, m, d] = item.date.split('-');
+                const dateObj = new Date(y, m-1, d);
+                let dayIdx = dateObj.getDay() === 0 ? 6 : dateObj.getDay() - 1;
+                weekdayLogCounts[dayIdx] += 1;
+            }
+        });
+
+        // Bereken het gemiddelde per weekdag (Totaal / Aantal keer dat deze dag voorkwam in de periode)
+        const weekdayAverages = weekdayLogCounts.map((tot, idx) => {
+            const occ = weekdayOccurrences[idx];
+            return occ > 0 ? (tot / occ) : 0;
+        });
+
+        // 5. CHART.JS GRAFIEKEN RENDERING
+        const ctxHourly = document.getElementById('hourlyChart').getContext('2d');
+        if (hourlyChartInstance) hourlyChartInstance.destroy();
+
+        hourlyChartInstance = new Chart(ctxHourly, {
+            type: 'bar',
+            data: {
+                labels: Array.from({length: 24}, (_, i) => `${String(i).padStart(2, '0')}u`),
+                datasets: [{
+                    data: hourlyTotals,
+                    backgroundColor: '#3b71ca',
+                    borderRadius: 4
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: {
+                    y: { beginAtZero: true, grid: { color: '#eee' } },
+                    x: { grid: { display: false }, ticks: { font: { size: 9 } } }
+                }
+            }
+        });
+
+        const ctxWeekday = document.getElementById('weekdayChart').getContext('2d');
+        if (weekdayChartInstance) weekdayChartInstance.destroy();
+
+        weekdayChartInstance = new Chart(ctxWeekday, {
+            type: 'bar',
+            data: {
+                labels: ['Ma', 'Di', 'Wo', 'Do', 'Vr', 'Za', 'Zo'],
+                datasets: [{
+                    data: weekdayAverages,
+                    backgroundColor: 'rgba(59, 113, 202, 0.85)',
+                    borderRadius: 6
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: {
+                    y: { 
+                        beginAtZero: true, 
+                        grid: { color: '#eee' }
+                        // Geen precision: 0 meer, zodat komma-getallen (bijv. 1.5) netjes op de as passen
+                    },
+                    x: { grid: { display: false } }
+                }
+            }
+        });
+    }
 </script>
 </body>
 <!-- Version history 
